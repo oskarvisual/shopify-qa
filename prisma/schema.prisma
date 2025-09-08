@@ -9,8 +9,8 @@ generator client {
 // enough when changing adapters.
 // See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
-  provider = "sqlite"
-  url      = "file:dev.sqlite"
+  provider = "mysql"
+  url      = env("DATABASE_URL")
 }
 
 model Session {
@@ -29,4 +29,35 @@ model Session {
   locale        String?
   collaborator  Boolean?  @default(false)
   emailVerified Boolean?  @default(false)
+}
+
+model Question {
+  id          String   @id @default(cuid())
+  shop        String
+  productId   String
+  customerName String?
+  customerEmail String?
+  question    String
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  answers     Answer[]
+  
+  @@index([shop, productId])
+}
+
+model Answer {
+  id         String   @id @default(cuid())
+  questionId String
+  authorName String
+  authorEmail String?
+  answer     String
+  isPublished Boolean @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  
+  @@index([questionId])
 }

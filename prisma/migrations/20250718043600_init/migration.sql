@@ -1,0 +1,54 @@
+-- CreateTable
+CREATE TABLE `Session` (
+    `id` VARCHAR(191) NOT NULL,
+    `shop` VARCHAR(191) NOT NULL,
+    `state` VARCHAR(191) NOT NULL,
+    `isOnline` BOOLEAN NOT NULL DEFAULT false,
+    `scope` VARCHAR(191) NULL,
+    `expires` DATETIME(3) NULL,
+    `accessToken` VARCHAR(191) NOT NULL,
+    `userId` BIGINT NULL,
+    `firstName` VARCHAR(191) NULL,
+    `lastName` VARCHAR(191) NULL,
+    `email` VARCHAR(191) NULL,
+    `accountOwner` BOOLEAN NOT NULL DEFAULT false,
+    `locale` VARCHAR(191) NULL,
+    `collaborator` BOOLEAN NULL DEFAULT false,
+    `emailVerified` BOOLEAN NULL DEFAULT false,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Question` (
+    `id` VARCHAR(191) NOT NULL,
+    `shop` VARCHAR(191) NOT NULL,
+    `productId` VARCHAR(191) NOT NULL,
+    `customerName` VARCHAR(191) NULL,
+    `customerEmail` VARCHAR(191) NULL,
+    `question` VARCHAR(191) NOT NULL,
+    `isPublished` BOOLEAN NOT NULL DEFAULT false,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `Question_shop_productId_idx`(`shop`, `productId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `Answer` (
+    `id` VARCHAR(191) NOT NULL,
+    `questionId` VARCHAR(191) NOT NULL,
+    `authorName` VARCHAR(191) NOT NULL,
+    `authorEmail` VARCHAR(191) NULL,
+    `answer` VARCHAR(191) NOT NULL,
+    `isPublished` BOOLEAN NOT NULL DEFAULT false,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `Answer_questionId_idx`(`questionId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- AddForeignKey
+ALTER TABLE `Answer` ADD CONSTRAINT `Answer_questionId_fkey` FOREIGN KEY (`questionId`) REFERENCES `Question`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

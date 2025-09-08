@@ -23,3 +23,6 @@ database.sqlite
 # Ignore shopify files created during app dev
 .shopify/*
 .shopify.lock
+
+# Shopify app configuration (contains sensitive client_id)
+shopify.app.toml
