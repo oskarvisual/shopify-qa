@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "Bash(npm run deploy:*)",
+      "Bash(pkill:*)",
+      "Bash(shopify app dev:*)",
+      "Bash(npx prisma:*)",
+      "Bash(shopify app:*)",
+      "Bash(mysql:*)",
+      "Bash(node:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(npm install:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

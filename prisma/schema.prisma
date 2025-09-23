@@ -32,19 +32,23 @@ model Session {
 }
 
 model Question {
-  id          String   @id @default(cuid())
-  shop        String
-  productId   String
-  customerName String?
-  customerEmail String?
-  question    String
-  isPublished Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  answers     Answer[]
-  
+  id               String    @id @default(cuid())
+  shop             String
+  productId        String
+  customerName     String?
+  customerEmail    String?
+  question         String
+  isPublished      Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  votes            Int       @default(0)
+  originalImportId String?   // To map answers to questions during import
+
+  answers    Answer[]
+  voteLogs   VoteLog[]
+
   @@index([shop, productId])
+  @@unique([shop, originalImportId], name: "shop_original_import_id")
 }
 
 model Answer {
@@ -59,5 +63,18 @@ model Answer {
   
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
   
+  @@index([questionId])
+}
+
+model VoteLog {
+  id         String   @id @default(cuid())
+  questionId String
+  shop       String
+  identifier String // Will store IP address or customer ID/email
+  createdAt  DateTime @default(now())
+
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, identifier, shop])
   @@index([questionId])
 }

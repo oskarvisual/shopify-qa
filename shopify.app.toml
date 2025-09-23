@@ -2,31 +2,35 @@
 
 client_id = "3064ddc918220795fa21739de76542f5"
 name = "product-questions-and-answers"
-handle = "product-questions-and-answers-2"
-application_url = "https://grace-rachel-courts-gst.trycloudflare.com"
+application_url = "https://example.com/"
 embedded = true
+handle = "product-questions-and-answers-2"
 
 [build]
-include_config_on_deploy = true
 automatically_update_urls_on_dev = true
 
 [webhooks]
 api_version = "2025-07"
 
   [[webhooks.subscriptions]]
-  topics = [ "app/uninstalled" ]
-  uri = "/webhooks/app/uninstalled"
-
-  [[webhooks.subscriptions]]
   topics = [ "app/scopes_update" ]
   uri = "/webhooks/app/scopes_update"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/app/uninstalled"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "write_products"
 
 [auth]
-redirect_urls = ["https://grace-rachel-courts-gst.trycloudflare.com/auth/callback", "https://grace-rachel-courts-gst.trycloudflare.com/auth/shopify/callback", "https://grace-rachel-courts-gst.trycloudflare.com/api/auth/callback"]
+redirect_urls = [ "https://example.com/api/auth" ]
 
 [pos]
 embedded = false
+
+[app_proxy]
+url = "https://wrist-snapshot-pic-subsequently.trycloudflare.com/"
+prefix = "apps"
+subpath = "a"

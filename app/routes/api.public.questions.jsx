@@ -6,8 +6,8 @@ const prisma = new PrismaClient();
 
 export const loader = async ({ request }) => {
   const url = new URL(request.url);
-  const productId = url.searchParams.get("productId");
   const shop = url.searchParams.get("shop");
+  const productId = url.searchParams.get("productId");
 
   if (!productId || !shop) {
     return json({ error: "Missing required parameters" }, { status: 400 });
