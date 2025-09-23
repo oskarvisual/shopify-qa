@@ -11,7 +11,9 @@
       "Bash(node:*)",
       "Bash(lsof:*)",
       "Bash(xargs kill:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(git commit:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
