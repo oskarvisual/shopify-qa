@@ -74,11 +74,442 @@
 </div>
 
 <style>
-  /* Styles remain the same */
+  .product-qa-wrapper {
+    margin: 20px 0;
+  }
+
+  .modal-button-container {
+    margin-bottom: 20px;
+  }
+
+  .btn-modal {
+    background: {{ block.settings.modal_button_bg_color | default: '#007cba' }};
+    color: {{ block.settings.modal_button_text_color | default: '#ffffff' }};
+    padding: 12px 24px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+  }
+
+  .btn-modal:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+  }
+
+  .qa-modal {
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    backdrop-filter: blur(3px);
+  }
+
+  .qa-modal-content {
+    background-color: {{ block.settings.modal_bg_color | default: '#ffffff' }};
+    margin: 5% auto;
+    padding: 0;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    animation: modalSlideIn 0.3s ease-out;
+  }
+
+  @keyframes modalSlideIn {
+    from { opacity: 0; transform: translateY(-50px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .close-modal {
+    color: {{ block.settings.close_button_color | default: '#aaa' }};
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    padding: 15px 20px 0 0;
+    cursor: pointer;
+    transition: color 0.3s ease;
+  }
+
+  .close-modal:hover,
+  .close-modal:focus {
+    color: {{ block.settings.close_button_hover_color | default: '#000' }};
+  }
+
+  .product-qa-form {
+    padding: 20px 30px 30px;
+    background: {{ block.settings.form_bg_color | default: '#ffffff' }};
+    {% if block.settings.display_style == 'modal' %}
+      border-radius: 0 0 10px 10px;
+    {% else %}
+      border-radius: 8px;
+    {% endif %}
+    {% unless block.settings.display_style == 'modal' %}
+      border: 1px solid {{ block.settings.form_border_color | default: '#e1e1e1' }};
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    {% endunless %}
+  }
+
+  .product-qa-form h3 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: {{ block.settings.title_color | default: '#333333' }};
+    font-size: {{ block.settings.title_font_size | default: '24' }}px;
+    font-weight: {{ block.settings.title_font_weight | default: '600' }};
+  }
+
+  .form-group {
+    margin-bottom: 20px;
+  }
+
+  .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: {{ block.settings.label_color | default: '#333333' }};
+    font-size: {{ block.settings.label_font_size | default: '14' }}px;
+  }
+
+  .form-group input,
+  .form-group textarea {
+    width: 100%;
+    padding: 12px 15px;
+    border: 2px solid {{ block.settings.input_border_color | default: '#e1e1e1' }};
+    border-radius: 6px;
+    font-size: 16px;
+    font-family: inherit;
+    transition: all 0.3s ease;
+    background-color: {{ block.settings.input_bg_color | default: '#ffffff' }};
+    color: {{ block.settings.input_text_color | default: '#333333' }};
+    box-sizing: border-box;
+  }
+
+  .form-group input:focus,
+  .form-group textarea:focus {
+    outline: none;
+    border-color: {{ block.settings.input_focus_border_color | default: '#007cba' }};
+    box-shadow: 0 0 0 3px {{ block.settings.input_focus_border_color | default: '#007cba' | color_modify: 'alpha', 0.1 }};
+  }
+
+  .form-group textarea {
+    resize: vertical;
+    min-height: 100px;
+  }
+
+  .btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    text-transform: {{ block.settings.button_text_transform | default: 'none' }};
+  }
+
+  .btn-primary {
+    background: {{ block.settings.submit_button_bg_color | default: '#007cba' }};
+    color: {{ block.settings.submit_button_text_color | default: '#ffffff' }};
+    box-shadow: 0 2px 4px rgba(0,123,186,0.3);
+  }
+
+  .btn-primary:hover {
+    background: {{ block.settings.submit_button_hover_bg_color | default: '#005a8b' }};
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,123,186,0.4);
+  }
+
+  .btn-primary:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0,123,186,0.3);
+  }
+
+  .form-message {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    animation: messageSlideIn 0.3s ease-out;
+  }
+
+  @keyframes messageSlideIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .form-message.success {
+    background: {{ block.settings.success_bg_color | default: '#d4edda' }};
+    color: {{ block.settings.success_text_color | default: '#155724' }};
+    border: 1px solid {{ block.settings.success_border_color | default: '#c3e6cb' }};
+  }
+
+  .form-message.error {
+    background: {{ block.settings.error_bg_color | default: '#f8d7da' }};
+    color: {{ block.settings.error_text_color | default: '#721c24' }};
+    border: 1px solid {{ block.settings.error_border_color | default: '#f5c6cb' }};
+  }
+
+  /* Loading state */
+  .form-loading .btn-primary {
+    opacity: 0.7;
+    cursor: not-allowed;
+    position: relative;
+  }
+
+  .form-loading .btn-primary::after {
+    content: '';
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: translateY(-50%) rotate(0deg); }
+    100% { transform: translateY(-50%) rotate(360deg); }
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .qa-modal-content {
+      width: 95%;
+      margin: 10% auto;
+    }
+
+    .product-qa-form {
+      padding: 15px 20px 20px;
+    }
+  }
 </style>
 
 <script>
-  // Script remains the same
+  document.addEventListener('DOMContentLoaded', function() {
+    const productId = document.querySelector('[data-product-id]')?.dataset.productId;
+    const form = document.getElementById('qa-form');
+    const messageDiv = document.getElementById('form-message');
+    const modalButton = document.getElementById('open-modal-btn');
+    const modal = document.getElementById('qa-modal');
+    const closeModal = document.querySelector('.close-modal');
+
+    if (!productId || !form || !messageDiv) {
+      console.error('Required elements not found for Q&A form');
+      return;
+    }
+
+    // Modal functionality (if modal mode)
+    if (modalButton && modal && closeModal) {
+      modalButton.addEventListener('click', function() {
+        modal.style.display = 'block';
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+      });
+
+      closeModal.addEventListener('click', function() {
+        closeModal();
+      });
+
+      // Close modal when clicking outside
+      window.addEventListener('click', function(event) {
+        if (event.target === modal) {
+          closeModal();
+        }
+      });
+
+      // Close modal with Escape key
+      document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && modal.style.display === 'block') {
+          closeModal();
+        }
+      });
+
+      function closeModal() {
+        modal.style.display = 'none';
+        document.body.style.overflow = ''; // Restore scrolling
+        form.reset();
+        hideMessage();
+      }
+    }
+
+    // Form submission
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      // Show loading state
+      const formWrapper = form.closest('.product-qa-form');
+      const submitButton = form.querySelector('button[type="submit"]');
+      const originalButtonText = submitButton.textContent;
+
+      formWrapper.classList.add('form-loading');
+      submitButton.disabled = true;
+      submitButton.textContent = '{{ block.settings.submitting_text | default: "Submitting..." }}';
+
+      // Prepare form data
+      const formData = new FormData(form);
+      formData.append('productId', productId);
+
+      // Submit form
+      fetch('/apps/a/api/public/questions', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.question) {
+          showMessage('success', '{{ block.settings.success_message | default: "Thank you! Your question has been submitted successfully." }}');
+          form.reset();
+
+          // Close modal after success (if modal mode)
+          if (modalButton && modal) {
+            setTimeout(() => {
+              closeModal();
+            }, 2000); // Close after 2 seconds
+          }
+        } else {
+          throw new Error(data.error || 'Failed to submit question');
+        }
+      })
+      .catch(error => {
+        console.error('Error submitting question:', error);
+        showMessage('error', '{{ block.settings.error_message | default: "Sorry, there was an error submitting your question. Please try again." }}');
+      })
+      .finally(() => {
+        // Reset loading state
+        formWrapper.classList.remove('form-loading');
+        submitButton.disabled = false;
+        submitButton.textContent = originalButtonText;
+      });
+    });
+
+    // Message display functions
+    function showMessage(type, text) {
+      messageDiv.innerHTML = text;
+      messageDiv.className = `form-message ${type}`;
+      messageDiv.style.display = 'block';
+
+      // Auto-hide success messages after 5 seconds
+      if (type === 'success') {
+        setTimeout(() => {
+          hideMessage();
+        }, 5000);
+      }
+    }
+
+    function hideMessage() {
+      messageDiv.style.display = 'none';
+      messageDiv.className = 'form-message';
+    }
+
+    // Form validation enhancements
+    const inputs = form.querySelectorAll('input, textarea');
+    inputs.forEach(input => {
+      // Real-time validation
+      input.addEventListener('blur', function() {
+        validateInput(this);
+      });
+
+      // Clear validation on focus
+      input.addEventListener('focus', function() {
+        clearValidation(this);
+      });
+    });
+
+    function validateInput(input) {
+      const value = input.value.trim();
+      const isRequired = input.hasAttribute('required');
+
+      if (isRequired && !value) {
+        setInputError(input, `${getFieldLabel(input)} is required`);
+        return false;
+      }
+
+      if (input.type === 'email' && value && !isValidEmail(value)) {
+        setInputError(input, 'Please enter a valid email address');
+        return false;
+      }
+
+      clearValidation(input);
+      return true;
+    }
+
+    function setInputError(input, message) {
+      input.style.borderColor = '{{ block.settings.error_border_color | default: "#dc3545" }}';
+
+      // Remove existing error message
+      const existingError = input.parentNode.querySelector('.field-error');
+      if (existingError) {
+        existingError.remove();
+      }
+
+      // Add error message
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'field-error';
+      errorDiv.style.color = '{{ block.settings.error_text_color | default: "#721c24" }}';
+      errorDiv.style.fontSize = '12px';
+      errorDiv.style.marginTop = '5px';
+      errorDiv.textContent = message;
+      input.parentNode.appendChild(errorDiv);
+    }
+
+    function clearValidation(input) {
+      input.style.borderColor = '{{ block.settings.input_border_color | default: "#e1e1e1" }}';
+
+      const errorDiv = input.parentNode.querySelector('.field-error');
+      if (errorDiv) {
+        errorDiv.remove();
+      }
+    }
+
+    function getFieldLabel(input) {
+      const label = input.parentNode.querySelector('label');
+      return label ? label.textContent.replace(':', '') : 'Field';
+    }
+
+    function isValidEmail(email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email);
+    }
+
+    // Pre-fill customer data if available
+    const customerNameInput = document.getElementById('customer-name');
+    const customerEmailInput = document.getElementById('customer-email');
+
+    if (customerNameInput && !customerNameInput.value && window.ShopifyAnalytics?.meta?.page?.customerId) {
+      // Try to get customer name from Shopify if available
+      fetch('/account.json')
+        .then(response => response.json())
+        .then(data => {
+          if (data.customer) {
+            if (customerNameInput && !customerNameInput.value) {
+              customerNameInput.value = `${data.customer.first_name || ''} ${data.customer.last_name || ''}`.trim();
+            }
+            if (customerEmailInput && !customerEmailInput.value) {
+              customerEmailInput.value = data.customer.email || '';
+            }
+          }
+        })
+        .catch(() => {
+          // Silently fail - not critical functionality
+        });
+    }
+  });
 </script>
 
 {% schema %}
@@ -154,6 +585,44 @@
       "id": "submit_text",
       "label": "Submit Button Text",
       "default": "Submit Question"
+    },
+    {
+      "type": "header",
+      "content": "Messages"
+    },
+    {
+      "type": "text",
+      "id": "success_message",
+      "label": "Success Message",
+      "default": "Thank you! Your question has been submitted successfully."
+    },
+    {
+      "type": "text",
+      "id": "error_message",
+      "label": "Error Message",
+      "default": "Sorry, there was an error submitting your question. Please try again."
+    },
+    {
+      "type": "header",
+      "content": "Styling"
+    },
+    {
+      "type": "color",
+      "id": "form_bg_color",
+      "label": "Form Background Color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "submit_button_bg_color",
+      "label": "Submit Button Background",
+      "default": "#007cba"
+    },
+    {
+      "type": "color",
+      "id": "submit_button_text_color",
+      "label": "Submit Button Text Color",
+      "default": "#ffffff"
     }
   ]
 }

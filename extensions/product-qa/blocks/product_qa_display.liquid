@@ -125,47 +125,173 @@
 
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    // ... (existing script setup)
+    const productId = document.querySelector('[data-product-id]')?.dataset.productId;
+    const qaList = document.getElementById('qa-list');
+    const searchInput = document.getElementById('qa-search');
+    const loadMoreBtn = document.getElementById('load-more-btn');
+    const loadMoreContainer = document.getElementById('load-more-container');
+    const loadingMore = document.getElementById('loading-more');
+    const openAskModal = document.getElementById('open-ask-modal-btn');
+    const askModal = document.getElementById('qa-ask-modal');
 
-    // New function to handle voting
-    function handleVote(e) {
-      e.preventDefault();
-      const form = e.target;
-      const button = form.querySelector('.btn-vote');
-      if (button.classList.contains('voted')) return; // Already voted
+    if (!productId || !qaList) {
+      console.error('Required elements not found for Q&A display');
+      return;
+    }
 
-      const formData = new FormData(form);
-      
-      fetch('/apps/a/api/vote', {
-        method: 'POST',
-        body: formData
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          const voteCountSpan = form.previousElementSibling;
-          voteCountSpan.textContent = `${data.votes} votes`;
-          button.classList.add('voted');
-          button.textContent = 'Voted!';
-        } else {
-          // Handle error, e.g., show a message that user already voted
-          button.textContent = data.error || 'Error';
-          button.classList.add('voted'); // Prevent re-trying
+    // Configuration from block settings
+    const showQuestionAuthor = {{ block.settings.show_question_author | json }};
+    const showQuestionDate = {{ block.settings.show_question_date | json }};
+    const showAnswerAuthor = {{ block.settings.show_answer_author | json }};
+    const showAnswerDate = {{ block.settings.show_answer_date | json }};
+    const showVotes = {{ block.settings.show_votes | json }};
+
+    const textSettings = {
+      questionLabel: "{{ block.settings.question_label_text | default: 'Q:' }}",
+      answerLabel: "{{ block.settings.answer_label_text | default: 'A:' }}",
+      askedBy: "{{ block.settings.asked_by_text | default: 'Asked by' }}",
+      answeredBy: "{{ block.settings.answered_by_text | default: 'Answered by' }}",
+      onDate: "{{ block.settings.on_date_text | default: 'on' }}",
+      noQuestions: "{{ block.settings.no_questions_text | default: 'No questions yet. Be the first to ask!' }}"
+    };
+
+    let currentPage = 1;
+    let isLoading = false;
+    let hasMore = true;
+    let allQuestions = [];
+    let filteredQuestions = [];
+
+    // Initialize
+    loadQuestions();
+
+    // Search functionality
+    if (searchInput) {
+      searchInput.addEventListener('input', debounce(handleSearch, 300));
+    }
+
+    // Load more functionality
+    if (loadMoreBtn) {
+      loadMoreBtn.addEventListener('click', loadMoreQuestions);
+    }
+
+    // Modal functionality
+    if (openAskModal && askModal) {
+      const closeModal = askModal.querySelector('.close-modal');
+
+      openAskModal.addEventListener('click', () => {
+        askModal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
+      });
+
+      if (closeModal) {
+        closeModal.addEventListener('click', () => {
+          closeAskModal();
+        });
+      }
+
+      askModal.addEventListener('click', (e) => {
+        if (e.target === askModal) {
+          closeAskModal();
         }
-      })
-      .catch(error => {
-        console.error('Error submitting vote:', error);
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && askModal.style.display === 'block') {
+          closeAskModal();
+        }
       });
     }
 
-    // Attach event listeners to vote forms dynamically
-    qaList.addEventListener('submit', function(e) {
-      if (e.target.classList.contains('qa-vote-form')) {
-        handleVote(e);
+    function closeAskModal() {
+      if (askModal) {
+        askModal.style.display = 'none';
+        document.body.style.overflow = '';
+        const form = askModal.querySelector('#qa-ask-form');
+        if (form) form.reset();
       }
-    });
+    }
 
-    // Modified formatQuestion to include vote section
+    function loadQuestions(page = 1) {
+      if (isLoading) return;
+
+      isLoading = true;
+      showLoading();
+
+      fetch(`/apps/a/api/public/questions?productId=${productId}&page=${page}&limit=10&shop={{ shop.domain }}`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.questions && Array.isArray(data.questions)) {
+            if (page === 1) {
+              allQuestions = data.questions;
+              filteredQuestions = [...allQuestions];
+            } else {
+              allQuestions = [...allQuestions, ...data.questions];
+              filteredQuestions = [...allQuestions];
+            }
+
+            hasMore = data.questions.length === 10; // Assuming 10 per page
+            renderQuestions(page === 1);
+            updateLoadMoreButton();
+          } else {
+            if (page === 1) {
+              showNoQuestions();
+            }
+          }
+        })
+        .catch(error => {
+          console.error('Error loading questions:', error);
+          if (page === 1) {
+            showError();
+          }
+        })
+        .finally(() => {
+          isLoading = false;
+          hideLoading();
+        });
+    }
+
+    function loadMoreQuestions() {
+      if (!hasMore || isLoading) return;
+
+      currentPage++;
+      loadQuestions(currentPage);
+    }
+
+    function handleSearch(e) {
+      const searchTerm = e.target.value.toLowerCase().trim();
+
+      if (searchTerm === '') {
+        filteredQuestions = [...allQuestions];
+      } else {
+        filteredQuestions = allQuestions.filter(question =>
+          question.question.toLowerCase().includes(searchTerm) ||
+          question.customerName?.toLowerCase().includes(searchTerm) ||
+          question.answers.some(answer =>
+            answer.answer.toLowerCase().includes(searchTerm) ||
+            answer.authorName?.toLowerCase().includes(searchTerm)
+          )
+        );
+      }
+
+      renderQuestions(true);
+      updateLoadMoreButton();
+    }
+
+    function renderQuestions(replace = false) {
+      if (filteredQuestions.length === 0) {
+        showNoQuestions();
+        return;
+      }
+
+      const questionsHtml = filteredQuestions.map(formatQuestion).join('');
+
+      if (replace) {
+        qaList.innerHTML = questionsHtml;
+      } else {
+        qaList.innerHTML += questionsHtml;
+      }
+    }
+
     function formatQuestion(question) {
       const questionMeta = [];
       if (showQuestionAuthor && question.customerName) {
@@ -176,26 +302,40 @@
       }
 
       const answersHtml = question.answers.map(answer => {
-        // ... (answer formatting remains the same)
+        const answerMeta = [];
+        if (showAnswerAuthor && answer.authorName) {
+          answerMeta.push(`${textSettings.answeredBy} ${answer.authorName}`);
+        }
+        if (showAnswerDate) {
+          answerMeta.push(`${textSettings.onDate} ${new Date(answer.createdAt).toLocaleDateString()}`);
+        }
+
+        return `
+          <div class="qa-answer">
+            <div class="answer-content">
+              <span class="answer-label">${textSettings.answerLabel}</span>
+              <span class="answer-text">${answer.answer}</span>
+            </div>
+            ${answerMeta.length > 0 ? `<div class="qa-answer-meta">${answerMeta.join(' ')}</div>` : ''}
+          </div>
+        `;
       }).join('');
 
-      const voteSection = `
-        {% if block.settings.show_votes %}
-          <div class="qa-vote-section">
-            <span class="qa-vote-count">${question.votes} votes</span>
-            <form class="qa-vote-form" method="post">
-              <input type="hidden" name="questionId" value="${question.id}">
-              <input type="hidden" name="shop" value="{{ shop.domain }}">
-              <button type="submit" class="btn btn-vote">
-                {% if block.settings.show_vote_icon %}
-                  <svg class="vote-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6zM9 4.5a1.5 1.5 0 113 0v1a1.5 1.5 0 01-3 0v-1z"></path></svg>
-                {% endif %}
-                <span>{{ block.settings.vote_button_text }}</span>
-              </button>
-            </form>
-          </div>
-        {% endif %}
-      `;
+      const voteSection = showVotes ? `
+        <div class="qa-vote-section">
+          <span class="qa-vote-count">${question.votes || 0} votes</span>
+          <form class="qa-vote-form" method="post">
+            <input type="hidden" name="questionId" value="${question.id}">
+            <input type="hidden" name="shop" value="{{ shop.domain }}">
+            <button type="submit" class="btn btn-vote">
+              {% if block.settings.show_vote_icon %}
+                <svg class="vote-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6zM9 4.5a1.5 1.5 0 113 0v1a1.5 1.5 0 01-3 0v-1z"></path></svg>
+              {% endif %}
+              <span>{{ block.settings.vote_button_text | default: "Helpful" }}</span>
+            </button>
+          </form>
+        </div>
+      ` : '';
 
       return `
         <div class="qa-item">
@@ -212,7 +352,90 @@
       `;
     }
 
-    // ... (rest of the existing script)
+    // Voting functionality
+    function handleVote(e) {
+      e.preventDefault();
+      const form = e.target;
+      const button = form.querySelector('.btn-vote');
+      if (button.classList.contains('voted')) return;
+
+      const formData = new FormData(form);
+
+      fetch('/apps/a/api/vote', {
+        method: 'POST',
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          const voteCountSpan = form.previousElementSibling;
+          voteCountSpan.textContent = `${data.votes} votes`;
+          button.classList.add('voted');
+          button.textContent = 'Voted!';
+        } else {
+          button.textContent = data.error || 'Error';
+          button.classList.add('voted');
+        }
+      })
+      .catch(error => {
+        console.error('Error submitting vote:', error);
+      });
+    }
+
+    // Attach vote event listeners
+    qaList.addEventListener('submit', function(e) {
+      if (e.target.classList.contains('qa-vote-form')) {
+        handleVote(e);
+      }
+    });
+
+    // Utility functions
+    function showLoading() {
+      if (currentPage === 1) {
+        qaList.innerHTML = '<div class="loading">Loading questions...</div>';
+      } else if (loadingMore) {
+        loadingMore.style.display = 'block';
+      }
+    }
+
+    function hideLoading() {
+      if (loadingMore) {
+        loadingMore.style.display = 'none';
+      }
+    }
+
+    function showNoQuestions() {
+      qaList.innerHTML = `<div class="no-questions">${textSettings.noQuestions}</div>`;
+      if (loadMoreContainer) {
+        loadMoreContainer.style.display = 'none';
+      }
+    }
+
+    function showError() {
+      qaList.innerHTML = '<div class="error">Failed to load questions. Please try again later.</div>';
+    }
+
+    function updateLoadMoreButton() {
+      if (!loadMoreContainer) return;
+
+      if (hasMore && filteredQuestions.length >= 10) {
+        loadMoreContainer.style.display = 'block';
+      } else {
+        loadMoreContainer.style.display = 'none';
+      }
+    }
+
+    function debounce(func, wait) {
+      let timeout;
+      return function executedFunction(...args) {
+        const later = () => {
+          clearTimeout(timeout);
+          func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+      };
+    }
   });
 </script>
 
@@ -263,9 +486,86 @@
     },
     {
       "type": "header",
+      "content": "Layout Settings"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_search",
+      "label": "Show Search Box",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_ask_button",
+      "label": "Show Ask Question Button",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "ask_button_text",
+      "label": "Ask Button Text",
+      "default": "Ask a Question"
+    },
+    {
+      "type": "header",
+      "content": "Colors"
+    },
+    {
+      "type": "color",
+      "id": "background_color",
+      "label": "Background Color",
+      "default": "#ffffff"
+    },
+    {
+      "type": "color",
+      "id": "text_color",
+      "label": "Text Color",
+      "default": "#333333"
+    },
+    {
+      "type": "color",
+      "id": "meta_text_color",
+      "label": "Meta Text Color",
+      "default": "#666666"
+    },
+    {
+      "type": "header",
       "content": "Display Options"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_question_author",
+      "label": "Show Question Author",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_question_date",
+      "label": "Show Question Date",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_answer_author",
+      "label": "Show Answer Author",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "show_answer_date",
+      "label": "Show Answer Date",
+      "default": true
+    },
+    {
+      "type": "header",
+      "content": "Text Content"
+    },
+    {
+      "type": "text",
+      "id": "no_questions_text",
+      "label": "No Questions Message",
+      "default": "No questions yet. Be the first to ask!"
     }
-    // ... (rest of existing settings)
   ]
 }
 {% endschema %}
