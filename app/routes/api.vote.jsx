@@ -4,6 +4,40 @@ import { cors } from "remix-utils/cors";
 
 const prisma = new PrismaClient();
 
+// GET method to check vote status
+export const loader = async ({ request }) => {
+  const url = new URL(request.url);
+  const questionId = url.searchParams.get("questionId");
+  const shop = url.searchParams.get("shop");
+  const customerEmail = url.searchParams.get("customerEmail");
+
+  if (!questionId || !shop) {
+    const response = json({ error: "Missing required fields" }, { status: 400 });
+    return cors(request, response);
+  }
+
+  try {
+    // Use IP + email as identifier for better uniqueness
+    const ip = request.headers.get("CF-Connecting-IP") || request.headers.get("X-Forwarded-For") || "unknown";
+    const identifier = `${ip}:${customerEmail || 'anonymous'}`;
+
+    const existingVote = await prisma.voteLog.findFirst({
+      where: {
+        questionId,
+        identifier,
+        shop,
+      },
+    });
+
+    const response = json({ hasVoted: !!existingVote });
+    return cors(request, response);
+  } catch (error) {
+    console.error("Error checking vote status:", error);
+    const errorResponse = json({ error: "Failed to check vote status" }, { status: 500 });
+    return cors(request, errorResponse);
+  }
+};
+
 export const action = async ({ request }) => {
   if (request.method !== "POST") {
     const response = json({ error: "Method not allowed" }, { status: 405 });
@@ -13,9 +47,11 @@ export const action = async ({ request }) => {
   const formData = await request.formData();
   const questionId = formData.get("questionId");
   const shop = formData.get("shop");
+  const customerEmail = formData.get("customerEmail");
 
-  // Basic identifier - for production, consider a more robust IP detection
-  const identifier = request.headers.get("CF-Connecting-IP") || request.headers.get("X-Forwarded-For") || "unknown";
+  // Use IP + email as identifier for better uniqueness
+  const ip = request.headers.get("CF-Connecting-IP") || request.headers.get("X-Forwarded-For") || "unknown";
+  const identifier = `${ip}:${customerEmail || 'anonymous'}`;
 
   if (!questionId || !shop) {
     const response = json({ error: "Missing required fields" }, { status: 400 });

@@ -1,103 +1,83 @@
 {% comment %}
   Product Q&A Form Block
-  Form for customers to submit questions
+  Shared form and modal for customer questions
 {% endcomment %}
 
 <div class="product-qa-wrapper" data-product-id="{{ product.id }}">
-  {% if block.settings.display_style == 'modal' %}
-    <!-- Modal Button -->
-    <div class="modal-button-container" style="text-align: {{ block.settings.modal_button_alignment }};">
-      <button id="open-modal-btn" class="btn btn-modal">{{ block.settings.modal_button_text }}</button>
-    </div>
+  <!-- Always Visible Form -->
+  <div class="product-qa-form">
+    <h3>{{ block.settings.title }}</h3>
 
-    <!-- Modal Overlay -->
-    <div id="qa-modal" class="qa-modal" style="display: none;">
-      <div class="qa-modal-content">
-        <span class="close-modal">&times;</span>
-        <div class="product-qa-form">
-          <h3>{{ block.settings.title }}</h3>
-
-          <form id="qa-form" class="qa-form">
-            <div class="form-group">
-              <label for="customer-name">{{ block.settings.name_label }}</label>
-              <input type="text" id="customer-name" name="customerName" value="{{ customer.name }}" {% if block.settings.name_required %}required{% endif %}>
-            </div>
-
-            <div class="form-group">
-              <label for="customer-email">{{ block.settings.email_label }}</label>
-              <input type="email" id="customer-email" name="customerEmail" value="{{ customer.email }}" {% if block.settings.email_required %}required{% endif %}>
-            </div>
-
-            <div class="form-group">
-              <label for="question">{{ block.settings.question_label }}</label>
-              <textarea id="question" name="question" rows="4" required></textarea>
-            </div>
-
-            <input type="hidden" name="shop" value="{{ shop.domain }}">
-
-            <button type="submit" class="btn btn-primary">{{ block.settings.submit_text }}</button>
-          </form>
-
-          <div id="form-message" class="form-message" style="display: none;"></div>
-        </div>
+    <form id="qa-form" class="qa-form">
+      <div class="form-group">
+        <label for="customer-name">{{ block.settings.name_label | default: 'Your Name' }}</label>
+        <input type="text" id="customer-name" name="customerName" value="{{ customer.name }}" {% if block.settings.name_required %}required{% endif %}>
       </div>
-    </div>
-  {% else %}
-    <!-- Always Visible Form -->
+
+      <div class="form-group">
+        <label for="customer-email">{{ block.settings.email_label | default: 'Your Email' }}</label>
+        <input type="email" id="customer-email" name="customerEmail" value="{{ customer.email }}" {% if block.settings.email_required %}required{% endif %}>
+      </div>
+
+      <div class="form-group">
+        <label for="question">{{ block.settings.question_label | default: 'Your Question' }}</label>
+        <textarea id="question" name="question" rows="4" required></textarea>
+      </div>
+
+      <input type="hidden" name="shop" value="{{ shop.domain }}">
+      <input type="hidden" name="productId" value="{{ product.id }}">
+
+      <button type="submit" class="btn btn-primary">{{ block.settings.submit_text | default: 'Submit Question' }}</button>
+    </form>
+
+    <div id="form-message" class="form-message" style="display: none;"></div>
+  </div>
+</div>
+
+<!-- Shared Modal (only for display section) -->
+<div id="qa-shared-modal" class="qa-modal" style="display: none;">
+  <div class="qa-modal-content">
+    <span class="close-modal">&times;</span>
     <div class="product-qa-form">
-      <h3>{{ block.settings.title }}</h3>
+      <h3 id="qa-modal-title">Ask a Question</h3>
 
-      <form id="qa-form" class="qa-form">
+      <form id="qa-form-modal" class="qa-form">
         <div class="form-group">
-          <label for="customer-name">{{ block.settings.name_label }}</label>
-          <input type="text" id="customer-name" name="customerName" value="{{ customer.name }}" {% if block.settings.name_required %}required{% endif %}>
+          <label for="customer-name-modal" id="name-label-modal">Your Name</label>
+          <input type="text" id="customer-name-modal" name="customerName" value="{{ customer.name }}">
         </div>
 
         <div class="form-group">
-          <label for="customer-email">{{ block.settings.email_label }}</label>
-          <input type="email" id="customer-email" name="customerEmail" value="{{ customer.email }}" {% if block.settings.email_required %}required{% endif %}>
+          <label for="customer-email-modal" id="email-label-modal">Your Email</label>
+          <input type="email" id="customer-email-modal" name="customerEmail" value="{{ customer.email }}">
         </div>
 
         <div class="form-group">
-          <label for="question">{{ block.settings.question_label }}</label>
-          <textarea id="question" name="question" rows="4" required></textarea>
+          <label for="question-modal" id="question-label-modal">Your Question</label>
+          <textarea id="question-modal" name="question" rows="4" required></textarea>
         </div>
 
         <input type="hidden" name="shop" value="{{ shop.domain }}">
+        <input type="hidden" name="productId" value="{{ product.id }}">
 
-        <button type="submit" class="btn btn-primary">{{ block.settings.submit_text }}</button>
+        <button type="submit" class="btn btn-primary" id="submit-btn-modal">Submit Question</button>
       </form>
 
-      <div id="form-message" class="form-message" style="display: none;"></div>
+      <div id="form-message-modal" class="form-message" style="display: none;"></div>
     </div>
-  {% endif %}
+  </div>
 </div>
 
 <style>
   .product-qa-wrapper {
-    margin: 20px 0;
+    margin: 20px auto;
+    {% if block.settings.form_width == 'full_width' %}
+      max-width: 100%;
+    {% else %}
+      max-width: {{ block.settings.form_max_width | default: 600 }}px;
+    {% endif %}
   }
 
-  .modal-button-container {
-    margin-bottom: 20px;
-  }
-
-  .btn-modal {
-    background: {{ block.settings.modal_button_bg_color | default: '#007cba' }};
-    color: {{ block.settings.modal_button_text_color | default: '#ffffff' }};
-    padding: 12px 24px;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 16px;
-    font-weight: 500;
-    transition: all 0.3s ease;
-  }
-
-  .btn-modal:hover {
-    opacity: 0.9;
-    transform: translateY(-1px);
-  }
 
   .qa-modal {
     position: fixed;
@@ -111,7 +91,7 @@
   }
 
   .qa-modal-content {
-    background-color: {{ block.settings.modal_bg_color | default: '#ffffff' }};
+    background-color: #ffffff;
     margin: 5% auto;
     padding: 0;
     border-radius: 10px;
@@ -129,7 +109,7 @@
   }
 
   .close-modal {
-    color: {{ block.settings.close_button_color | default: '#aaa' }};
+    color: #aaa;
     float: right;
     font-size: 28px;
     font-weight: bold;
@@ -140,29 +120,25 @@
 
   .close-modal:hover,
   .close-modal:focus {
-    color: {{ block.settings.close_button_hover_color | default: '#000' }};
+    color: #000;
   }
 
   .product-qa-form {
-    padding: 20px 30px 30px;
-    background: {{ block.settings.form_bg_color | default: '#ffffff' }};
-    {% if block.settings.display_style == 'modal' %}
-      border-radius: 0 0 10px 10px;
-    {% else %}
-      border-radius: 8px;
+    padding: {{ block.settings.form_inner_padding | default: 30 }}px;
+    background: {{ block.settings.form_inner_background | default: '#ffffff' }};
+    border-radius: {{ block.settings.form_border_radius | default: 8 }}px;
+    border: {{ block.settings.form_border_width | default: 1 }}px solid {{ block.settings.form_border_color | default: '#e1e1e1' }};
+    {% if block.settings.form_show_shadow %}
+      box-shadow: 0 2px 10px {{ block.settings.form_shadow_color | default: 'rgba(0,0,0,0.1)' }};
     {% endif %}
-    {% unless block.settings.display_style == 'modal' %}
-      border: 1px solid {{ block.settings.form_border_color | default: '#e1e1e1' }};
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    {% endunless %}
   }
 
   .product-qa-form h3 {
     margin-top: 0;
     margin-bottom: 20px;
     color: {{ block.settings.title_color | default: '#333333' }};
-    font-size: {{ block.settings.title_font_size | default: '24' }}px;
-    font-weight: {{ block.settings.title_font_weight | default: '600' }};
+    font-size: {{ block.settings.title_font_size | default: 24 }}px;
+    font-weight: 600;
   }
 
   .form-group {
@@ -173,21 +149,21 @@
     display: block;
     margin-bottom: 8px;
     font-weight: 600;
-    color: {{ block.settings.label_color | default: '#333333' }};
-    font-size: {{ block.settings.label_font_size | default: '14' }}px;
+    color: {{ block.settings.text_color | default: '#333333' }};
+    font-size: 14px;
   }
 
   .form-group input,
   .form-group textarea {
     width: 100%;
     padding: 12px 15px;
-    border: 2px solid {{ block.settings.input_border_color | default: '#e1e1e1' }};
-    border-radius: 6px;
+    border: 1px solid {{ block.settings.input_border_color | default: '#e1e1e1' }};
+    border-radius: {{ block.settings.input_border_radius | default: 6 }}px;
     font-size: 16px;
     font-family: inherit;
     transition: all 0.3s ease;
-    background-color: {{ block.settings.input_bg_color | default: '#ffffff' }};
-    color: {{ block.settings.input_text_color | default: '#333333' }};
+    background-color: #ffffff;
+    color: {{ block.settings.text_color | default: '#333333' }};
     box-sizing: border-box;
   }
 
@@ -195,7 +171,7 @@
   .form-group textarea:focus {
     outline: none;
     border-color: {{ block.settings.input_focus_border_color | default: '#007cba' }};
-    box-shadow: 0 0 0 3px {{ block.settings.input_focus_border_color | default: '#007cba' | color_modify: 'alpha', 0.1 }};
+    box-shadow: 0 0 0 3px {{ block.settings.input_focus_border_color | color_modify: 'alpha', 0.1 }};
   }
 
   .form-group textarea {
@@ -211,7 +187,7 @@
     font-size: 16px;
     font-weight: 600;
     transition: all 0.3s ease;
-    text-transform: {{ block.settings.button_text_transform | default: 'none' }};
+    text-transform: none;
   }
 
   .btn-primary {
@@ -221,7 +197,7 @@
   }
 
   .btn-primary:hover {
-    background: {{ block.settings.submit_button_hover_bg_color | default: '#005a8b' }};
+    background: {{ block.settings.submit_button_bg_color | default: '#007cba' | color_darken: 10 }};
     transform: translateY(-1px);
     box-shadow: 0 4px 8px rgba(0,123,186,0.4);
   }
@@ -246,15 +222,15 @@
   }
 
   .form-message.success {
-    background: {{ block.settings.success_bg_color | default: '#d4edda' }};
-    color: {{ block.settings.success_text_color | default: '#155724' }};
-    border: 1px solid {{ block.settings.success_border_color | default: '#c3e6cb' }};
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
   }
 
   .form-message.error {
-    background: {{ block.settings.error_bg_color | default: '#f8d7da' }};
-    color: {{ block.settings.error_text_color | default: '#721c24' }};
-    border: 1px solid {{ block.settings.error_border_color | default: '#f5c6cb' }};
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
   }
 
   /* Loading state */
@@ -299,215 +275,147 @@
 <script>
   document.addEventListener('DOMContentLoaded', function() {
     const productId = document.querySelector('[data-product-id]')?.dataset.productId;
-    const form = document.getElementById('qa-form');
-    const messageDiv = document.getElementById('form-message');
-    const modalButton = document.getElementById('open-modal-btn');
-    const modal = document.getElementById('qa-modal');
-    const closeModal = document.querySelector('.close-modal');
+    const sharedModal = document.getElementById('qa-shared-modal');
+    const openModalBtn = document.getElementById('open-modal-btn');
+    const qaForm = document.getElementById('qa-form');
+    const qaFormModal = document.getElementById('qa-form-modal');
+    const formMessage = document.getElementById('form-message');
+    const formMessageModal = document.getElementById('form-message-modal');
 
-    if (!productId || !form || !messageDiv) {
-      console.error('Required elements not found for Q&A form');
+    if (!productId) {
+      console.error('Product ID not found');
       return;
     }
 
-    // Modal functionality (if modal mode)
-    if (modalButton && modal && closeModal) {
-      modalButton.addEventListener('click', function() {
-        modal.style.display = 'block';
-        document.body.style.overflow = 'hidden'; // Prevent background scrolling
-      });
+    // Global function to open shared modal (can be called from display section)
+    window.openQAModal = function() {
+      if (sharedModal && window.qaModalSettings) {
+        // Update all modal content from display section settings
+        const modalTitle = document.getElementById('qa-modal-title');
+        const nameLabel = document.getElementById('name-label-modal');
+        const nameInput = document.getElementById('customer-name-modal');
+        const emailLabel = document.getElementById('email-label-modal');
+        const emailInput = document.getElementById('customer-email-modal');
+        const questionLabel = document.getElementById('question-label-modal');
+        const submitBtn = document.getElementById('submit-btn-modal');
 
-      closeModal.addEventListener('click', function() {
-        closeModal();
-      });
+        if (modalTitle) modalTitle.textContent = window.qaModalSettings.title;
+        if (nameLabel) nameLabel.textContent = window.qaModalSettings.nameLabel;
+        if (nameInput) nameInput.required = window.qaModalSettings.nameRequired;
+        if (emailLabel) emailLabel.textContent = window.qaModalSettings.emailLabel;
+        if (emailInput) emailInput.required = window.qaModalSettings.emailRequired;
+        if (questionLabel) questionLabel.textContent = window.qaModalSettings.questionLabel;
+        if (submitBtn) submitBtn.textContent = window.qaModalSettings.submitText;
 
-      // Close modal when clicking outside
-      window.addEventListener('click', function(event) {
-        if (event.target === modal) {
-          closeModal();
-        }
-      });
-
-      // Close modal with Escape key
-      document.addEventListener('keydown', function(event) {
-        if (event.key === 'Escape' && modal.style.display === 'block') {
-          closeModal();
-        }
-      });
-
-      function closeModal() {
-        modal.style.display = 'none';
-        document.body.style.overflow = ''; // Restore scrolling
-        form.reset();
-        hideMessage();
+        sharedModal.style.display = 'block';
+        document.body.style.overflow = 'hidden';
       }
+    };
+
+    // Global function to close shared modal
+    window.closeQAModal = function() {
+      if (sharedModal) {
+        sharedModal.style.display = 'none';
+        document.body.style.overflow = '';
+        if (qaFormModal) qaFormModal.reset();
+        hideMessage(true); // true for modal
+      }
+    };
+
+    // Modal close events - needed for display section's ask button
+    if (sharedModal) {
+      const closeModalBtn = sharedModal.querySelector('.close-modal');
+
+      if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', window.closeQAModal);
+      }
+
+      sharedModal.addEventListener('click', (e) => {
+        if (e.target === sharedModal) {
+          window.closeQAModal();
+        }
+      });
     }
 
-    // Form submission
-    form.addEventListener('submit', function(e) {
-      e.preventDefault();
-
-      // Show loading state
-      const formWrapper = form.closest('.product-qa-form');
-      const submitButton = form.querySelector('button[type="submit"]');
-      const originalButtonText = submitButton.textContent;
-
-      formWrapper.classList.add('form-loading');
-      submitButton.disabled = true;
-      submitButton.textContent = '{{ block.settings.submitting_text | default: "Submitting..." }}';
-
-      // Prepare form data
-      const formData = new FormData(form);
-      formData.append('productId', productId);
-
-      // Submit form
-      fetch('/apps/a/api/public/questions', {
-        method: 'POST',
-        body: formData
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-      })
-      .then(data => {
-        if (data.question) {
-          showMessage('success', '{{ block.settings.success_message | default: "Thank you! Your question has been submitted successfully." }}');
-          form.reset();
-
-          // Close modal after success (if modal mode)
-          if (modalButton && modal) {
-            setTimeout(() => {
-              closeModal();
-            }, 2000); // Close after 2 seconds
-          }
-        } else {
-          throw new Error(data.error || 'Failed to submit question');
-        }
-      })
-      .catch(error => {
-        console.error('Error submitting question:', error);
-        showMessage('error', '{{ block.settings.error_message | default: "Sorry, there was an error submitting your question. Please try again." }}');
-      })
-      .finally(() => {
-        // Reset loading state
-        formWrapper.classList.remove('form-loading');
-        submitButton.disabled = false;
-        submitButton.textContent = originalButtonText;
-      });
+    // Escape key to close modal
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && sharedModal && sharedModal.style.display === 'block') {
+        window.closeQAModal();
+      }
     });
 
-    // Message display functions
-    function showMessage(type, text) {
-      messageDiv.innerHTML = text;
-      messageDiv.className = `form-message ${type}`;
-      messageDiv.style.display = 'block';
+    // Form submission handler
+    function handleFormSubmit(form, isModal = false) {
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
 
-      // Auto-hide success messages after 5 seconds
-      if (type === 'success') {
-        setTimeout(() => {
-          hideMessage();
-        }, 5000);
-      }
-    }
+        const formData = new FormData(this);
+        const submitBtn = this.querySelector('button[type="submit"]');
 
-    function hideMessage() {
-      messageDiv.style.display = 'none';
-      messageDiv.className = 'form-message';
-    }
+        // Add loading state
+        const originalText = submitBtn.textContent;
+        submitBtn.textContent = 'Submitting...';
+        submitBtn.disabled = true;
+        this.classList.add('form-loading');
 
-    // Form validation enhancements
-    const inputs = form.querySelectorAll('input, textarea');
-    inputs.forEach(input => {
-      // Real-time validation
-      input.addEventListener('blur', function() {
-        validateInput(this);
-      });
-
-      // Clear validation on focus
-      input.addEventListener('focus', function() {
-        clearValidation(this);
-      });
-    });
-
-    function validateInput(input) {
-      const value = input.value.trim();
-      const isRequired = input.hasAttribute('required');
-
-      if (isRequired && !value) {
-        setInputError(input, `${getFieldLabel(input)} is required`);
-        return false;
-      }
-
-      if (input.type === 'email' && value && !isValidEmail(value)) {
-        setInputError(input, 'Please enter a valid email address');
-        return false;
-      }
-
-      clearValidation(input);
-      return true;
-    }
-
-    function setInputError(input, message) {
-      input.style.borderColor = '{{ block.settings.error_border_color | default: "#dc3545" }}';
-
-      // Remove existing error message
-      const existingError = input.parentNode.querySelector('.field-error');
-      if (existingError) {
-        existingError.remove();
-      }
-
-      // Add error message
-      const errorDiv = document.createElement('div');
-      errorDiv.className = 'field-error';
-      errorDiv.style.color = '{{ block.settings.error_text_color | default: "#721c24" }}';
-      errorDiv.style.fontSize = '12px';
-      errorDiv.style.marginTop = '5px';
-      errorDiv.textContent = message;
-      input.parentNode.appendChild(errorDiv);
-    }
-
-    function clearValidation(input) {
-      input.style.borderColor = '{{ block.settings.input_border_color | default: "#e1e1e1" }}';
-
-      const errorDiv = input.parentNode.querySelector('.field-error');
-      if (errorDiv) {
-        errorDiv.remove();
-      }
-    }
-
-    function getFieldLabel(input) {
-      const label = input.parentNode.querySelector('label');
-      return label ? label.textContent.replace(':', '') : 'Field';
-    }
-
-    function isValidEmail(email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      return emailRegex.test(email);
-    }
-
-    // Pre-fill customer data if available
-    const customerNameInput = document.getElementById('customer-name');
-    const customerEmailInput = document.getElementById('customer-email');
-
-    if (customerNameInput && !customerNameInput.value && window.ShopifyAnalytics?.meta?.page?.customerId) {
-      // Try to get customer name from Shopify if available
-      fetch('/account.json')
+        fetch('/apps/a/api/public/questions', {
+          method: 'POST',
+          body: formData
+        })
         .then(response => response.json())
         .then(data => {
-          if (data.customer) {
-            if (customerNameInput && !customerNameInput.value) {
-              customerNameInput.value = `${data.customer.first_name || ''} ${data.customer.last_name || ''}`.trim();
+          if (data.question || data.success) {
+            showMessage('Thank you! Your question has been submitted successfully.', 'success', isModal);
+            this.reset();
+
+            // Reload questions if display section exists
+            if (window.reloadQuestions) {
+              setTimeout(() => window.reloadQuestions(), 1000);
             }
-            if (customerEmailInput && !customerEmailInput.value) {
-              customerEmailInput.value = data.customer.email || '';
+
+            // Close modal after success if it's the modal form
+            if (isModal && sharedModal && sharedModal.style.display === 'block') {
+              setTimeout(() => window.closeQAModal(), 2000);
             }
+          } else {
+            showMessage(data.error || 'Sorry, there was an error submitting your question. Please try again.', 'error', isModal);
           }
         })
-        .catch(() => {
-          // Silently fail - not critical functionality
+        .catch(error => {
+          console.error('Error submitting question:', error);
+          showMessage('Sorry, there was an error submitting your question. Please try again.', 'error', isModal);
+        })
+        .finally(() => {
+          submitBtn.textContent = originalText;
+          submitBtn.disabled = false;
+          this.classList.remove('form-loading');
         });
+      });
+    }
+
+    // Attach form submission handlers
+    if (qaForm) {
+      handleFormSubmit(qaForm, false);
+    }
+    if (qaFormModal) {
+      handleFormSubmit(qaFormModal, true);
+    }
+
+    function showMessage(message, type, isModal = false) {
+      const messageElement = isModal ? formMessageModal : formMessage;
+      if (messageElement) {
+        messageElement.textContent = message;
+        messageElement.className = `form-message ${type}`;
+        messageElement.style.display = 'block';
+      }
+    }
+
+    function hideMessage(isModal = false) {
+      const messageElement = isModal ? formMessageModal : formMessage;
+      if (messageElement) {
+        messageElement.style.display = 'none';
+        messageElement.className = 'form-message';
+      }
     }
   });
 </script>
@@ -518,37 +426,47 @@
   "target": "section",
   "settings": [
     {
+      "type": "header",
+      "content": "General"
+    },
+    {
       "type": "text",
       "id": "title",
       "label": "Form Title",
       "default": "Ask a Question"
     },
     {
-      "type": "select",
-      "id": "display_style",
-      "label": "Display Style",
-      "options": [
-        {"value": "visible", "label": "Always Visible"},
-        {"value": "modal", "label": "Modal Popup"}
-      ],
-      "default": "visible"
-    },
-    {
-      "type": "text",
-      "id": "modal_button_text",
-      "label": "Modal Button Text",
-      "default": "Ask a Question"
+      "type": "range",
+      "id": "title_font_size",
+      "label": "Title Font Size (px)",
+      "min": 14,
+      "max": 48,
+      "step": 1,
+      "default": 24
     },
     {
       "type": "select",
-      "id": "modal_button_alignment",
-      "label": "Modal Button Alignment",
+      "id": "form_width",
+      "label": "Form Width",
       "options": [
-        {"value": "left", "label": "Left"},
-        {"value": "center", "label": "Center"},
-        {"value": "right", "label": "Right"}
+        {"value": "max_width", "label": "Max Width"},
+        {"value": "full_width", "label": "Full Width"}
       ],
-      "default": "center"
+      "default": "max_width"
+    },
+    {
+      "type": "range",
+      "id": "form_max_width",
+      "label": "Max Width (px)",
+      "min": 300,
+      "max": 1000,
+      "step": 50,
+      "default": 600,
+      "info": "Only applies when Form Width is 'Max Width'"
+    },
+    {
+      "type": "header",
+      "content": "Content"
     },
     {
       "type": "text",
@@ -588,29 +506,62 @@
     },
     {
       "type": "header",
-      "content": "Messages"
-    },
-    {
-      "type": "text",
-      "id": "success_message",
-      "label": "Success Message",
-      "default": "Thank you! Your question has been submitted successfully."
-    },
-    {
-      "type": "text",
-      "id": "error_message",
-      "label": "Error Message",
-      "default": "Sorry, there was an error submitting your question. Please try again."
-    },
-    {
-      "type": "header",
-      "content": "Styling"
+      "content": "Form Styling"
     },
     {
       "type": "color",
-      "id": "form_bg_color",
+      "id": "form_inner_background",
       "label": "Form Background Color",
       "default": "#ffffff"
+    },
+    {
+      "type": "range",
+      "id": "form_inner_padding",
+      "label": "Form Inner Padding (px)",
+      "min": 10,
+      "max": 60,
+      "step": 5,
+      "default": 30
+    },
+    {
+      "type": "range",
+      "id": "form_border_radius",
+      "label": "Form Border Radius (px)",
+      "min": 0,
+      "max": 25,
+      "step": 1,
+      "default": 8
+    },
+    {
+      "type": "range",
+      "id": "form_border_width",
+      "label": "Form Border Width (px)",
+      "min": 0,
+      "max": 5,
+      "step": 1,
+      "default": 1
+    },
+    {
+      "type": "color",
+      "id": "form_border_color",
+      "label": "Form Border Color",
+      "default": "#e1e1e1"
+    },
+    {
+      "type": "checkbox",
+      "id": "form_show_shadow",
+      "label": "Show Form Shadow",
+      "default": true
+    },
+    {
+      "type": "color",
+      "id": "form_shadow_color",
+      "label": "Form Shadow Color",
+      "default": "rgba(0,0,0,0.1)"
+    },
+    {
+      "type": "header",
+      "content": "Submit Button"
     },
     {
       "type": "color",
@@ -623,7 +574,7 @@
       "id": "submit_button_text_color",
       "label": "Submit Button Text Color",
       "default": "#ffffff"
-    }
+    },
   ]
 }
 {% endschema %}

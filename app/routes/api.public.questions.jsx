@@ -8,6 +8,9 @@ export const loader = async ({ request }) => {
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
   const productId = url.searchParams.get("productId");
+  const page = parseInt(url.searchParams.get("page") || "1", 10);
+  const limit = parseInt(url.searchParams.get("limit") || "10", 10);
+  const skip = (page - 1) * limit;
 
   if (!productId || !shop) {
     return json({ error: "Missing required parameters" }, { status: 400 });
@@ -20,6 +23,8 @@ export const loader = async ({ request }) => {
         productId,
         isPublished: true,
       },
+      skip,
+      take: limit,
       include: {
         answers: {
           where: { isPublished: true },

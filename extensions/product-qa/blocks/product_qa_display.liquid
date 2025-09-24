@@ -1,40 +1,28 @@
 {% comment %}
   Product Q&A Display Block
   Shows existing questions and answers for a product
+  Updated: Cache refresh
 {% endcomment %}
 
 <div class="product-qa-display" data-product-id="{{ product.id }}">
-  <h3>{{ block.settings.title }}</h3>
 
-  {% if block.settings.layout_style == 'inline' and block.settings.show_ask_button %}
-    <!-- Inline Layout: Search, Title, Button all in one row -->
-    <div class="qa-header qa-header-inline">
+  <div class="qa-header">
+    <h3>{{ block.settings.title }}</h3>
+
+    <div class="qa-header-controls">
       {% if block.settings.show_search %}
-        <div class="search-container">
-          <input type="text" id="qa-search" class="qa-search-input" placeholder="{{ block.settings.search_placeholder }}">
+        <div class="search-container {% unless block.settings.show_ask_button %}search-full-width{% endunless %}">
+          <input type="text" id="qa-search" class="qa-search-input" placeholder="Search questions...">
         </div>
       {% endif %}
 
-      <div class="ask-section-inline">
-        <span class="ask-title">{{ block.settings.ask_section_title }}</span>
-        <button id="open-ask-modal-btn" class="btn btn-ask">{{ block.settings.ask_button_text }}</button>
-      </div>
+      {% if block.settings.show_ask_button %}
+        <div class="ask-section">
+          <button id="open-ask-modal-btn" class="btn btn-ask" onclick="window.openQAModal()">{{ block.settings.ask_button_text }}</button>
+        </div>
+      {% endif %}
     </div>
-  {% else %}
-    <!-- Stacked Layout -->
-    {% if block.settings.show_search %}
-      <div class="search-container">
-        <input type="text" id="qa-search" class="qa-search-input" placeholder="Search questions...">
-      </div>
-    {% endif %}
-
-    {% if block.settings.show_ask_button %}
-      <div class="ask-section-stacked">
-        <div class="ask-title">{{ block.settings.ask_section_title }}</div>
-        <button id="open-ask-modal-btn" class="btn btn-ask">{{ block.settings.ask_button_text }}</button>
-      </div>
-    {% endif %}
-  {% endif %}
+  </div>
 
   <!-- Questions List -->
   <div id="qa-list" class="qa-list">
@@ -43,84 +31,223 @@
 
   <!-- Load More Button -->
   <div id="load-more-container" class="load-more-container" style="display: none;">
-    <button id="load-more-btn" class="btn btn-load-more">{{ block.settings.load_more_text }}</button>
-    <div id="loading-more" class="loading-more" style="display: none;">{{ block.settings.loading_more_text }}</div>
+    <button id="load-more-btn" class="btn btn-load-more">{{ block.settings.load_more_text | default: 'Load More' }}</button>
+    <div id="loading-more" class="loading-more" style="display: none;">Loading...</div>
   </div>
 
-  {% if block.settings.show_ask_button %}
-    <!-- Modal for Ask Question (reusing form code) -->
-    <div id="qa-ask-modal" class="qa-modal" style="display: none;">
-      <div class="qa-modal-content">
-        <span class="close-modal">&times;</span>
-        <div class="product-qa-form">
-          <h3>{{ block.settings.modal_title }}</h3>
-
-          <form id="qa-ask-form" class="qa-form">
-            <div class="form-group">
-              <label for="ask-customer-name">{{ block.settings.name_label }}</label>
-              <input type="text" id="ask-customer-name" name="customerName" value="{{ customer.name }}">
-            </div>
-
-            <div class="form-group">
-              <label for="ask-customer-email">{{ block.settings.email_label }}</label>
-              <input type="email" id="ask-customer-email" name="customerEmail" value="{{ customer.email }}">
-            </div>
-
-            <div class="form-group">
-              <label for="ask-question">{{ block.settings.question_field_label }}</label>
-              <textarea id="ask-question" name="question" rows="4" required></textarea>
-            </div>
-
-            <input type="hidden" name="shop" value="{{ shop.domain }}">
-
-            <button type="submit" class="btn btn-primary">{{ block.settings.submit_button_text }}</button>
-          </form>
-
-          <div id="ask-form-message" class="form-message" style="display: none;"></div>
-        </div>
-      </div>
-    </div>
-  {% endif %}
 </div>
 
 <style>
   .product-qa-display {
-    margin: 20px 0;
+    margin: 20px auto;
     padding: 20px;
-    background: {{ block.settings.background_color }};
+    background: {{ block.settings.background_color | default: 'transparent' }};
     border-radius: 8px;
+    {% if block.settings.width == 'full_width' %}
+      max-width: 100%;
+    {% else %}
+      max-width: {{ block.settings.display_max_width | default: 800 }}px;
+    {% endif %}
   }
-  .qa-vote-section {
+
+  .qa-header {
+    margin-bottom: 20px;
+  }
+
+  .qa-header h3 {
+    margin: 0 0 15px 0;
+    font-size: {{ block.settings.title_font_size | default: 24 }}px;
+  }
+
+  .qa-header-controls {
     display: flex;
+    gap: 15px;
     align-items: center;
-    gap: 8px;
-    margin-top: 12px;
   }
-  .qa-vote-count {
+
+  .search-container {
+    flex-grow: 1;
+  }
+
+  .search-container.search-full-width {
+    flex-grow: 1;
+    width: 100%;
+  }
+
+  .qa-search-input {
+    width: 100%;
+    padding: 10px 15px;
+    border-radius: 5px;
+    border: 1px solid {{ block.settings.search_border_color | default: '#ccc' }};
+    background: {{ block.settings.search_bg_color | default: '#fff' }};
+    color: {{ block.settings.text_color | default: '#333' }};
+  }
+
+  .btn-ask {
+    background: {{ block.settings.ask_button_bg_color | default: '#007cba' }};
+    color: {{ block.settings.ask_button_text_color | default: '#ffffff' }};
+    white-space: nowrap;
+  }
+
+  .btn-ask:hover {
+    background: {{ block.settings.ask_button_bg_color | default: '#007cba' | color_darken: 10 }};
+    transform: translateY(-1px);
+  }
+
+  /* Q&A Item Styles - New Table Format */
+  .qa-item {
+    margin-bottom: 15px;
+    padding: 15px 0;
+  }
+
+  {% if block.settings.display_style == 'block' %}
+  /* BLOCK STYLE - Card appearance */
+  .qa-item {
+    background: {{ block.settings.block_bg_color | default: '#f8f9fa' }} !important;
+    border: 1px solid {{ block.settings.block_border_color | default: '#dee2e6' }} !important;
+    border-radius: 8px !important;
+    padding: 20px !important;
+    margin-bottom: 20px !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+  }
+  {% else %}
+  /* SEPARATOR STYLE - List appearance */
+  .qa-item {
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 15px 0 !important;
+    margin-bottom: 0 !important;
+    box-shadow: none !important;
+    border-bottom: 1px solid {{ block.settings.separator_color | default: '#e1e1e1' }} !important;
+  }
+  {% endif %}
+
+  .qa-item:last-child {
+    {% if block.settings.display_style == 'separator' %}
+      border-bottom: none;
+    {% endif %}
+  }
+
+  .qa-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .qa-table td {
+    vertical-align: top;
+    padding: 8px 0;
+  }
+
+  .qa-label {
+    width: 80px;
+    padding-right: 16px;
+    color: {{ block.settings.label_color | default: '#666666' }};
     font-size: 14px;
     font-weight: 500;
-    color: {{ block.settings.meta_text_color }};
   }
+
+  .qa-content {
+    position: relative;
+  }
+
+  .qa-question-text {
+    color: {{ block.settings.question_text_color | default: '#000000' }};
+    font-weight: bold;
+    font-size: 16px;
+    line-height: 1.4;
+  }
+
+  .qa-answer-text {
+    color: {{ block.settings.answer_text_color | default: '#000000' }};
+    font-size: 16px;
+    line-height: 1.4;
+    margin-bottom: 8px;
+  }
+
+  .qa-meta {
+    color: {{ block.settings.meta_text_color | default: '#666666' }};
+    font-size: 12px;
+  }
+
+  .qa-vote-container {
+    position: absolute;
+    top: 0;
+    right: 0;
+  }
+
+  .btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+  }
+
   .btn-vote {
-    background: {{ block.settings.vote_button_color }};
+    background: {{ block.settings.vote_button_color | default: '#007cba' }};
     color: #fff;
-    padding: 5px 12px;
+    padding: 6px 12px;
     border-radius: 20px;
     font-size: 12px;
     display: inline-flex;
     align-items: center;
     gap: 5px;
-  }
-  .btn-vote.voted {
-    background: {{ block.settings.voted_button_color }};
-    cursor: default;
-  }
-  .btn-vote .vote-icon {
-    width: 14px;
-    height: 14px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
   }
 
-  /* Other styles remain the same... */
+  .btn-vote:hover {
+    background: {{ block.settings.vote_button_color | default: '#007cba' | color_darken: 10 }};
+    transform: translateY(-1px);
+  }
+
+  .btn-vote.voted {
+    background: #cccccc;
+    color: #666666;
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .btn-vote.voted:hover {
+    background: #cccccc;
+    color: #666666;
+    transform: none;
+    cursor: not-allowed;
+  }
+
+  .btn-vote:disabled {
+    background: #cccccc;
+    color: #666666;
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  .btn-vote:disabled:hover {
+    background: #cccccc;
+    color: #666666;
+    transform: none;
+  }
+
+  .btn-vote.voting {
+    background: #ffa500;
+    color: #ffffff;
+    cursor: not-allowed;
+  }
+
+  .btn-vote.voting:hover {
+    background: #ffa500;
+    color: #ffffff;
+    transform: none;
+  }
+
+  .vote-icon {
+    width: 12px;
+    height: 12px;
+  }
 </style>
 
 <script>
@@ -140,15 +267,12 @@
     }
 
     // Configuration from block settings
-    const showQuestionAuthor = {{ block.settings.show_question_author | json }};
-    const showQuestionDate = {{ block.settings.show_question_date | json }};
-    const showAnswerAuthor = {{ block.settings.show_answer_author | json }};
-    const showAnswerDate = {{ block.settings.show_answer_date | json }};
+    const showMeta = {{ block.settings.show_meta | json }};
     const showVotes = {{ block.settings.show_votes | json }};
 
     const textSettings = {
-      questionLabel: "{{ block.settings.question_label_text | default: 'Q:' }}",
-      answerLabel: "{{ block.settings.answer_label_text | default: 'A:' }}",
+      questionLabel: "Question:",
+      answerLabel: "Answers:",
       askedBy: "{{ block.settings.asked_by_text | default: 'Asked by' }}",
       answeredBy: "{{ block.settings.answered_by_text | default: 'Answered by' }}",
       onDate: "{{ block.settings.on_date_text | default: 'on' }}",
@@ -160,6 +284,18 @@
     let hasMore = true;
     let allQuestions = [];
     let filteredQuestions = [];
+    let customerEmail = '{{ customer.email | default: "" }}'; // Get customer email
+
+    // Set global modal settings for shared modal
+    window.qaModalSettings = {
+      title: '{{ block.settings.ask_modal_title | default: "Ask a Question" }}',
+      nameLabel: '{{ block.settings.modal_name_label | default: "Your Name" }}',
+      nameRequired: {{ block.settings.modal_name_required | default: true }},
+      emailLabel: '{{ block.settings.modal_email_label | default: "Your Email" }}',
+      emailRequired: {{ block.settings.modal_email_required | default: true }},
+      questionLabel: '{{ block.settings.modal_question_label | default: "Your Question" }}',
+      submitText: '{{ block.settings.modal_submit_text | default: "Submit Question" }}'
+    };
 
     // Initialize
     loadQuestions();
@@ -174,40 +310,50 @@
       loadMoreBtn.addEventListener('click', loadMoreQuestions);
     }
 
-    // Modal functionality
-    if (openAskModal && askModal) {
-      const closeModal = askModal.querySelector('.close-modal');
+    // Global function to reload questions (called from form section after submission)
+    window.reloadQuestions = function() {
+      currentPage = 1;
+      allQuestions = [];
+      filteredQuestions = [];
+      loadQuestions();
+    };
 
-      openAskModal.addEventListener('click', () => {
-        askModal.style.display = 'block';
-        document.body.style.overflow = 'hidden';
-      });
-
-      if (closeModal) {
-        closeModal.addEventListener('click', () => {
-          closeAskModal();
+    async function checkVoteStatus(questionId) {
+      try {
+        const params = new URLSearchParams({
+          questionId,
+          shop: '{{ shop.domain }}',
+          customerEmail: customerEmail
         });
+
+        const response = await fetch(`/apps/a/api/vote?${params}`);
+        const data = await response.json();
+        return data.hasVoted || false;
+      } catch (error) {
+        console.warn('Failed to check vote status:', error);
+        return false;
       }
-
-      askModal.addEventListener('click', (e) => {
-        if (e.target === askModal) {
-          closeAskModal();
-        }
-      });
-
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && askModal.style.display === 'block') {
-          closeAskModal();
-        }
-      });
     }
 
-    function closeAskModal() {
-      if (askModal) {
-        askModal.style.display = 'none';
-        document.body.style.overflow = '';
-        const form = askModal.querySelector('#qa-ask-form');
-        if (form) form.reset();
+    async function checkAllVoteStatuses() {
+      const voteButtons = document.querySelectorAll('.btn-vote:not(.voted):not(.voting)');
+
+      for (const button of voteButtons) {
+        const questionId = button.closest('.qa-vote-form').dataset.questionId;
+        const hasVoted = await checkVoteStatus(questionId);
+
+        if (hasVoted) {
+          // Update button to voted state
+          const currentVotes = button.dataset.votes || 0;
+          button.classList.add('voted');
+          button.disabled = true;
+          button.innerHTML = `
+            <svg class="vote-icon" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6zM9 4.5a1.5 1.5 0 113 0v1a1.5 1.5 0 01-3 0v-1z"></path>
+            </svg>
+            <span>Voted! (${currentVotes})</span>
+          `;
+        }
       }
     }
 
@@ -229,9 +375,12 @@
               filteredQuestions = [...allQuestions];
             }
 
-            hasMore = data.questions.length === 10; // Assuming 10 per page
+            hasMore = data.questions.length === 10;
             renderQuestions(page === 1);
             updateLoadMoreButton();
+
+            // Check vote status for all visible questions
+            checkAllVoteStatuses();
           } else {
             if (page === 1) {
               showNoQuestions();
@@ -293,61 +442,70 @@
     }
 
     function formatQuestion(question) {
+      // Question meta
       const questionMeta = [];
-      if (showQuestionAuthor && question.customerName) {
-        questionMeta.push(`${textSettings.askedBy} ${question.customerName}`);
-      }
-      if (showQuestionDate) {
+      if (showMeta) {
+        if (question.customerName) {
+          questionMeta.push(`${textSettings.askedBy} ${question.customerName}`);
+        }
         questionMeta.push(`${textSettings.onDate} ${new Date(question.createdAt).toLocaleDateString()}`);
       }
 
-      const answersHtml = question.answers.map(answer => {
-        const answerMeta = [];
-        if (showAnswerAuthor && answer.authorName) {
-          answerMeta.push(`${textSettings.answeredBy} ${answer.authorName}`);
-        }
-        if (showAnswerDate) {
-          answerMeta.push(`${textSettings.onDate} ${new Date(answer.createdAt).toLocaleDateString()}`);
-        }
-
-        return `
-          <div class="qa-answer">
-            <div class="answer-content">
-              <span class="answer-label">${textSettings.answerLabel}</span>
-              <span class="answer-text">${answer.answer}</span>
-            </div>
-            ${answerMeta.length > 0 ? `<div class="qa-answer-meta">${answerMeta.join(' ')}</div>` : ''}
-          </div>
-        `;
-      }).join('');
-
-      const voteSection = showVotes ? `
-        <div class="qa-vote-section">
-          <span class="qa-vote-count">${question.votes || 0} votes</span>
-          <form class="qa-vote-form" method="post">
+      // Vote button (top right) - Initial state, will be updated by checkAllVoteStatuses
+      const voteButton = showVotes ? `
+        <div class="qa-vote-container">
+          <form class="qa-vote-form" method="post" data-question-id="${question.id}">
             <input type="hidden" name="questionId" value="${question.id}">
             <input type="hidden" name="shop" value="{{ shop.domain }}">
-            <button type="submit" class="btn btn-vote">
-              {% if block.settings.show_vote_icon %}
-                <svg class="vote-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6zM9 4.5a1.5 1.5 0 113 0v1a1.5 1.5 0 01-3 0v-1z"></path></svg>
-              {% endif %}
-              <span>{{ block.settings.vote_button_text | default: "Helpful" }}</span>
+            <input type="hidden" name="customerEmail" value="${customerEmail}">
+            <button type="submit" class="btn btn-vote" data-votes="${question.votes || 0}">
+              <svg class="vote-icon" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6zM9 4.5a1.5 1.5 0 113 0v1a1.5 1.5 0 01-3 0v-1z"></path>
+              </svg>
+              <span>{{ block.settings.vote_button_text | default: "Helpful" }} (${question.votes || 0})</span>
             </button>
           </form>
         </div>
       ` : '';
 
+      // Answers rows - Only one "Answers:" label for all answers
+      let answersRows = '';
+      if (question.answers.length > 0) {
+        answersRows = `<tr><td class="qa-label">${textSettings.answerLabel}</td><td class="qa-content">`;
+
+        question.answers.forEach((answer, index) => {
+          const answerMeta = [];
+          if (showMeta) {
+            if (answer.authorName) {
+              answerMeta.push(`${textSettings.answeredBy} ${answer.authorName}`);
+            }
+            answerMeta.push(`${textSettings.onDate} ${new Date(answer.createdAt).toLocaleDateString()}`);
+          }
+
+          answersRows += `
+            <div class="qa-answer-item" ${index > 0 ? 'style="margin-top: 16px;"' : ''}>
+              <div class="qa-answer-text">${answer.answer}</div>
+              ${answerMeta.length > 0 ? `<div class="qa-meta">${answerMeta.join(' ')}</div>` : ''}
+            </div>
+          `;
+        });
+
+        answersRows += `</td></tr>`;
+      }
+
       return `
         <div class="qa-item">
-          <div class="qa-question-container">
-            <div class="question-content">
-              <span class="question-label">${textSettings.questionLabel}</span>
-              <span class="question-text">${question.question}</span>
-            </div>
-            ${questionMeta.length > 0 ? `<div class="qa-question-meta">${questionMeta.join(' ')}</div>` : ''}
-            ${voteSection}
-          </div>
-          ${answersHtml ? `<div class="qa-answers">${answersHtml}</div>` : ''}
+          <table class="qa-table">
+            <tr>
+              <td class="qa-label">${textSettings.questionLabel}</td>
+              <td class="qa-content">
+                ${voteButton}
+                <div class="qa-question-text">${question.question}</div>
+                ${questionMeta.length > 0 ? `<div class="qa-meta">${questionMeta.join(' ')}</div>` : ''}
+              </td>
+            </tr>
+            ${answersRows}
+          </table>
         </div>
       `;
     }
@@ -355,11 +513,24 @@
     // Voting functionality
     function handleVote(e) {
       e.preventDefault();
+      e.stopPropagation();
+
       const form = e.target;
       const button = form.querySelector('.btn-vote');
-      if (button.classList.contains('voted')) return;
+      const questionId = form.dataset.questionId;
+
+      // Check if already voted or disabled
+      if (button.classList.contains('voted') || button.disabled) {
+        return false;
+      }
 
       const formData = new FormData(form);
+      const originalText = button.innerHTML;
+
+      // Add loading state
+      button.disabled = true;
+      button.classList.add('voting');
+      button.innerHTML = `<span>Voting...</span>`;
 
       fetch('/apps/a/api/vote', {
         method: 'POST',
@@ -368,23 +539,69 @@
       .then(response => response.json())
       .then(data => {
         if (data.success) {
-          const voteCountSpan = form.previousElementSibling;
-          voteCountSpan.textContent = `${data.votes} votes`;
+          // Update button to disabled/voted state
+          button.classList.remove('voting');
           button.classList.add('voted');
-          button.textContent = 'Voted!';
+          button.disabled = true;
+          button.innerHTML = `
+            <svg class="vote-icon" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6zM9 4.5a1.5 1.5 0 113 0v1a1.5 1.5 0 01-3 0v-1z"></path>
+            </svg>
+            <span>Voted! (${data.votes})</span>
+          `;
         } else {
-          button.textContent = data.error || 'Error';
-          button.classList.add('voted');
+          // Check if error is "already voted" - if so, mark as voted
+          if (data.error && data.error.includes('already voted')) {
+            // Update button to voted state
+            const currentVotes = button.dataset.votes || 0;
+            button.classList.remove('voting');
+            button.classList.add('voted');
+            button.disabled = true;
+            button.innerHTML = `
+              <svg class="vote-icon" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6zM9 4.5a1.5 1.5 0 113 0v1a1.5 1.5 0 01-3 0v-1z"></path>
+              </svg>
+              <span>Voted! (${currentVotes})</span>
+            `;
+          } else {
+            // Other error - restore button
+            button.classList.remove('voting');
+            button.disabled = false;
+            button.innerHTML = originalText;
+            console.error('Vote failed:', data.error);
+          }
         }
       })
       .catch(error => {
         console.error('Error submitting vote:', error);
+        button.classList.remove('voting');
+        button.disabled = false;
+        button.innerHTML = originalText;
       });
+
+      return false;
     }
 
-    // Attach vote event listeners
+    // Attach vote event listeners with click prevention for voted buttons
+    qaList.addEventListener('click', function(e) {
+      if (e.target.closest('.btn-vote')) {
+        const button = e.target.closest('.btn-vote');
+        if (button.classList.contains('voted') || button.disabled) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+      }
+    });
+
     qaList.addEventListener('submit', function(e) {
       if (e.target.classList.contains('qa-vote-form')) {
+        const button = e.target.querySelector('.btn-vote');
+        if (button.classList.contains('voted') || button.disabled) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
         handleVote(e);
       }
     });
@@ -445,48 +662,47 @@
   "target": "section",
   "settings": [
     {
+      "type": "header",
+      "content": "General"
+    },
+    {
       "type": "text",
       "id": "title",
       "label": "Section Title",
       "default": "Questions & Answers"
     },
     {
-      "type": "header",
-      "content": "Voting Settings"
+      "type": "range",
+      "id": "title_font_size",
+      "label": "Title Font Size (px)",
+      "min": 14,
+      "max": 48,
+      "step": 1,
+      "default": 24
     },
     {
-      "type": "checkbox",
-      "id": "show_votes",
-      "label": "Show Vote Counts & Button",
-      "default": true
+      "type": "select",
+      "id": "width",
+      "label": "Display Width",
+      "options": [
+        {"value": "max_width", "label": "Max Width"},
+        {"value": "full_width", "label": "Full Width"}
+      ],
+      "default": "max_width"
     },
     {
-      "type": "text",
-      "id": "vote_button_text",
-      "label": "'Helpful' Button Text",
-      "default": "Helpful"
-    },
-    {
-      "type": "checkbox",
-      "id": "show_vote_icon",
-      "label": "Show Thumbs-up Icon",
-      "default": true
-    },
-    {
-      "type": "color",
-      "id": "vote_button_color",
-      "label": "Vote Button Color",
-      "default": "#007cba"
-    },
-    {
-      "type": "color",
-      "id": "voted_button_color",
-      "label": "Voted Button Color",
-      "default": "#28a745"
+      "type": "range",
+      "id": "display_max_width",
+      "label": "Max Width (px)",
+      "min": 300,
+      "max": 1200,
+      "step": 50,
+      "default": 800,
+      "info": "Only applies when Display Width is 'Max Width'"
     },
     {
       "type": "header",
-      "content": "Layout Settings"
+      "content": "Layout"
     },
     {
       "type": "checkbox",
@@ -501,26 +717,99 @@
       "default": true
     },
     {
+      "type": "header",
+      "content": "Modal Content"
+    },
+    {
       "type": "text",
       "id": "ask_button_text",
       "label": "Ask Button Text",
       "default": "Ask a Question"
     },
     {
+      "type": "text",
+      "id": "ask_modal_title",
+      "label": "Modal Title",
+      "default": "Ask a Question"
+    },
+    {
+      "type": "text",
+      "id": "modal_name_label",
+      "label": "Name Field Label",
+      "default": "Your Name"
+    },
+    {
+      "type": "checkbox",
+      "id": "modal_name_required",
+      "label": "Name Required",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "modal_email_label",
+      "label": "Email Field Label",
+      "default": "Your Email"
+    },
+    {
+      "type": "checkbox",
+      "id": "modal_email_required",
+      "label": "Email Required",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "modal_question_label",
+      "label": "Question Field Label",
+      "default": "Your Question"
+    },
+    {
+      "type": "text",
+      "id": "modal_submit_text",
+      "label": "Submit Button Text",
+      "default": "Submit Question"
+    },
+    {
       "type": "header",
-      "content": "Colors"
+      "content": "Display Layout"
+    },
+    {
+      "type": "select",
+      "id": "display_style",
+      "label": "Display Style",
+      "options": [
+        {"value": "separator", "label": "Separator"},
+        {"value": "block", "label": "Block"}
+      ],
+      "default": "separator",
+      "info": "Choose between separator lines or block containers for each Q&A item."
     },
     {
       "type": "color",
-      "id": "background_color",
-      "label": "Background Color",
-      "default": "#ffffff"
+      "id": "separator_color",
+      "label": "Separator Color",
+      "default": "#e1e1e1",
+      "info": "Only applies when Display Style is 'Separator'"
     },
     {
       "type": "color",
-      "id": "text_color",
-      "label": "Text Color",
-      "default": "#333333"
+      "id": "block_bg_color",
+      "label": "Block Background Color",
+      "default": "#f8f9fa",
+      "info": "Only applies when Display Style is 'Block'"
+    },
+    {
+      "type": "color",
+      "id": "block_border_color",
+      "label": "Block Border Color",
+      "default": "#dee2e6",
+      "info": "Only applies when Display Style is 'Block'"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_meta",
+      "label": "Show Author and Date",
+      "default": true,
+      "info": "Controls visibility for question and answer metadata."
     },
     {
       "type": "color",
@@ -530,42 +819,36 @@
     },
     {
       "type": "header",
-      "content": "Display Options"
+      "content": "Voting"
     },
     {
       "type": "checkbox",
-      "id": "show_question_author",
-      "label": "Show Question Author",
+      "id": "show_votes",
+      "label": "Show Vote Counts & Button",
       "default": true
     },
     {
-      "type": "checkbox",
-      "id": "show_question_date",
-      "label": "Show Question Date",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "show_answer_author",
-      "label": "Show Answer Author",
-      "default": true
-    },
-    {
-      "type": "checkbox",
-      "id": "show_answer_date",
-      "label": "Show Answer Date",
-      "default": true
+      "type": "color",
+      "id": "vote_button_color",
+      "label": "Vote Button Color",
+      "default": "#007cba"
     },
     {
       "type": "header",
-      "content": "Text Content"
+      "content": "Ask Button Styling"
     },
     {
-      "type": "text",
-      "id": "no_questions_text",
-      "label": "No Questions Message",
-      "default": "No questions yet. Be the first to ask!"
-    }
+      "type": "color",
+      "id": "ask_button_bg_color",
+      "label": "Ask Button Background",
+      "default": "#007cba"
+    },
+    {
+      "type": "color",
+      "id": "ask_button_text_color",
+      "label": "Ask Button Text Color",
+      "default": "#ffffff"
+    },
   ]
 }
 {% endschema %}
