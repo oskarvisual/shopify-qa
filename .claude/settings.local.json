@@ -13,7 +13,9 @@
       "Bash(xargs kill:*)",
       "Bash(npm install:*)",
       "Bash(git commit:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(shopify:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []

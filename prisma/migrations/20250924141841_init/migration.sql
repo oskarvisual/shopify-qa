@@ -30,8 +30,11 @@ CREATE TABLE `Question` (
     `isPublished` BOOLEAN NOT NULL DEFAULT false,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
+    `votes` INTEGER NOT NULL DEFAULT 0,
+    `originalImportId` VARCHAR(191) NULL,
 
     INDEX `Question_shop_productId_idx`(`shop`, `productId`),
+    UNIQUE INDEX `Question_shop_originalImportId_key`(`shop`, `originalImportId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -50,5 +53,21 @@ CREATE TABLE `Answer` (
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
+-- CreateTable
+CREATE TABLE `VoteLog` (
+    `id` VARCHAR(191) NOT NULL,
+    `questionId` VARCHAR(191) NOT NULL,
+    `shop` VARCHAR(191) NOT NULL,
+    `identifier` VARCHAR(191) NOT NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    INDEX `VoteLog_questionId_idx`(`questionId`),
+    UNIQUE INDEX `VoteLog_questionId_identifier_shop_key`(`questionId`, `identifier`, `shop`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 -- AddForeignKey
 ALTER TABLE `Answer` ADD CONSTRAINT `Answer_questionId_fkey` FOREIGN KEY (`questionId`) REFERENCES `Question`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `VoteLog` ADD CONSTRAINT `VoteLog_questionId_fkey` FOREIGN KEY (`questionId`) REFERENCES `Question`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
