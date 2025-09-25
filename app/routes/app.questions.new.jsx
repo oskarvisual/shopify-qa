@@ -21,9 +21,18 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+const GET_PRODUCT_DETAILS_QUERY = `
+  query getProductDetails($id: ID!) {
+    product(id: $id) {
+      productType
+      tags
+    }
+  }
+`;
+
 // Action to handle creating a new question
 export const action = async ({ request }) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const { shop } = session;
 
   const formData = await request.formData();
@@ -38,6 +47,30 @@ export const action = async ({ request }) => {
   }
 
   try {
+    let productType = null;
+    let productCategory = null;
+    let productTags = null;
+
+    // Fetch product details from Shopify
+    try {
+      const response = await admin.graphql(GET_PRODUCT_DETAILS_QUERY, {
+        variables: { id: `gid://shopify/Product/${productId}` },
+      });
+
+      const productDetails = await response.json();
+      const product = productDetails.data?.product;
+
+      if (product) {
+        productType = product.productType;
+        productTags = product.tags?.join(', ');
+        // Use product type as fallback category
+        productCategory = productType ? productType.charAt(0).toUpperCase() + productType.slice(1) : null;
+      }
+    } catch (productError) {
+      console.warn("Failed to fetch product details from Shopify:", productError.message);
+      // Continue without product details
+    }
+
     const newQuestion = await prisma.question.create({
       data: {
         shop: shop,
@@ -46,6 +79,9 @@ export const action = async ({ request }) => {
         customerName: customerName,
         customerEmail: customerEmail,
         isPublished: isPublished,
+        productType,
+        productCategory,
+        productTags,
       },
     });
     return redirect(`/app/questions/${newQuestion.id}`);

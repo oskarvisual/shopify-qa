@@ -27,6 +27,15 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+const GET_PRODUCT_DETAILS_QUERY = `
+  query getProductDetails($id: ID!) {
+    product(id: $id) {
+      productType
+      tags
+    }
+  }
+`;
+
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
   const { shop } = session;
@@ -43,7 +52,7 @@ export const loader = async ({ request }) => {
 };
 
 export const action = async ({ request }) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const { shop } = session;
 
   const formData = await request.formData();
@@ -52,11 +61,11 @@ export const action = async ({ request }) => {
 
   if (actionType === "export-questions") {
     const questions = await prisma.question.findMany({ where: { shop }, orderBy: { createdAt: "desc" } });
-    const csvHeaders = ["question_export_id", "productId", "customerName", "customerEmail", "question", "isPublished", "createdAt", "votes"].join(",");
+    const csvHeaders = ["question_export_id", "productId", "productType", "productCategory", "productTags", "customerName", "customerEmail", "question", "isPublished", "createdAt", "votes"].join(",");
     const csvRows = questions.map((q, index) => {
       const escapeCsv = (str) => `"${String(str || "").replace(/"/g, '""')}"`
       const exportId = `q${index + 1}`;
-      return [exportId, q.productId, escapeCsv(q.customerName), escapeCsv(q.customerEmail), escapeCsv(q.question), q.isPublished, q.createdAt.toISOString(), q.votes].join(",");
+      return [exportId, q.productId, escapeCsv(q.productType), escapeCsv(q.productCategory), escapeCsv(q.productTags), escapeCsv(q.customerName), escapeCsv(q.customerEmail), escapeCsv(q.question), q.isPublished, q.createdAt.toISOString(), q.votes].join(",");
     });
     const csvContent = [csvHeaders, ...csvRows].join("\n");
     const filename = `questions-export-${today}.csv`;
@@ -162,6 +171,30 @@ export const action = async ({ request }) => {
           }
         }
 
+        let productType = null;
+        let productCategory = null;
+        let productTags = null;
+
+        // Try to fetch product details from Shopify
+        try {
+          const response = await admin.graphql(GET_PRODUCT_DETAILS_QUERY, {
+            variables: { id: `gid://shopify/Product/${String(row.productId).trim()}` },
+          });
+
+          const productDetails = await response.json();
+          const product = productDetails.data?.product;
+
+          if (product) {
+            productType = product.productType;
+            productTags = product.tags?.join(', ');
+            // Use product type as fallback category
+            productCategory = productType ? productType.charAt(0).toUpperCase() + productType.slice(1) : null;
+          }
+        } catch (productError) {
+          console.warn(`Failed to fetch product details for product ${row.productId}:`, productError.message);
+          // Continue without product details
+        }
+
         await prisma.question.create({
           data: {
             shop,
@@ -173,6 +206,9 @@ export const action = async ({ request }) => {
             isPublished: String(row.isPublished || "false").toLowerCase() === "true",
             createdAt: createdAt,
             votes: votes,
+            productType,
+            productCategory,
+            productTags,
           }
         });
         createdCount++;

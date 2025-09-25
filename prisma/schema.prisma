@@ -35,6 +35,9 @@ model Question {
   id               String    @id @default(cuid())
   shop             String
   productId        String
+  productType      String?   // Technical product type (e.g., "snowboard")
+  productCategory  String?   // Main collection/category (e.g., "Hydrogen")
+  productTags      String?   // Comma-separated tags (e.g., "Accessory, Sport, Winter")
   customerName     String?
   customerEmail    String?
   question         String

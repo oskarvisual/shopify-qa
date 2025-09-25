@@ -1,8 +1,18 @@
 import { json } from "@remix-run/node";
 import { PrismaClient } from "@prisma/client";
 import { cors } from "remix-utils/cors";
+import { shopify } from "../shopify.server";
 
 const prisma = new PrismaClient();
+
+const GET_PRODUCT_DETAILS_QUERY = `
+  query getProductDetails($id: ID!) {
+    product(id: $id) {
+      productType
+      tags
+    }
+  }
+`;
 
 export const loader = async ({ request }) => {
   const url = new URL(request.url);
@@ -62,6 +72,78 @@ export const action = async ({ request }) => {
   }
 
   try {
+    let productType = null;
+    let productCategory = null;
+    let productTags = null;
+
+    // Get product details securely using stored session
+    try {
+      // Find a valid session for this shop
+      const session = await prisma.session.findFirst({
+        where: {
+          shop: shop
+        },
+        orderBy: { id: 'desc' }
+      });
+
+      if (session && session.accessToken) {
+        console.log(`Found session for shop ${shop}, attempting to fetch product ${productId} - v3`);
+
+        // Use REST API to fetch product details
+        const productResponse = await fetch(`https://${shop}/admin/api/2023-10/products/${productId}.json`, {
+          headers: {
+            'X-Shopify-Access-Token': session.accessToken,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (productResponse.ok) {
+          const productData = await productResponse.json();
+          console.log(`Successfully fetched product data:`, productData.product);
+
+          if (productData.product) {
+            productType = productData.product.product_type;
+            productTags = productData.product.tags || null;
+            console.log(`Product type: ${productType}, tags: ${productTags}`);
+
+            // Fetch product collections using REST API - try different approach
+            const collectionsResponse = await fetch(`https://${shop}/admin/api/2023-10/collections.json?product_id=${productId}`, {
+              headers: {
+                'X-Shopify-Access-Token': session.accessToken,
+                'Content-Type': 'application/json',
+              },
+            });
+
+            if (collectionsResponse.ok) {
+              const collectionsData = await collectionsResponse.json();
+              console.log(`Successfully fetched collections:`, collectionsData.collections);
+
+              // Get the first non-automated collection as the main category
+              const mainCollection = collectionsData.collections?.find(
+                collection => collection.title !== 'All' && !collection.title.toLowerCase().includes('automated')
+              );
+
+              if (mainCollection) {
+                productCategory = mainCollection.title;
+                console.log(`Main collection/category: ${productCategory}`);
+              }
+            } else {
+              console.warn(`Failed to fetch collections for product ${productId}: HTTP ${collectionsResponse.status} - ${collectionsResponse.statusText}`);
+              // Fallback: Use product_type as category if no collections are available
+              productCategory = productType ? productType.charAt(0).toUpperCase() + productType.slice(1) : null;
+              console.log(`Using product type as fallback category: ${productCategory}`);
+            }
+          }
+        } else {
+          console.warn(`Failed to fetch product ${productId}: HTTP ${productResponse.status}`);
+        }
+      } else {
+        console.warn(`No valid session found for shop ${shop}`);
+      }
+    } catch (sessionError) {
+      console.warn("Failed to get session for product lookup:", sessionError.message);
+    }
+
     const newQuestion = await prisma.question.create({
       data: {
         shop,
@@ -69,6 +151,9 @@ export const action = async ({ request }) => {
         customerName,
         customerEmail,
         question,
+        productType,
+        productCategory,
+        productTags,
       },
     });
 

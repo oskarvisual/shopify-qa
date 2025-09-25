@@ -4,6 +4,15 @@ import { authenticate } from "../shopify.server";
 
 const prisma = new PrismaClient();
 
+const GET_PRODUCT_DETAILS_QUERY = `
+  query getProductDetails($id: ID!) {
+    product(id: $id) {
+      productType
+      tags
+    }
+  }
+`;
+
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const url = new URL(request.url);
@@ -42,6 +51,31 @@ export const action = async ({ request }) => {
       const customerName = formData.get("customerName");
       const customerEmail = formData.get("customerEmail");
       const question = formData.get("question");
+      const isPublished = formData.get("isPublished") === "true";
+
+      let productType = null;
+      let productCategory = null;
+      let productTags = null;
+
+      // Fetch product details from Shopify
+      try {
+        const response = await admin.graphql(GET_PRODUCT_DETAILS_QUERY, {
+          variables: { id: `gid://shopify/Product/${productId}` },
+        });
+
+        const productDetails = await response.json();
+        const product = productDetails.data?.product;
+
+        if (product) {
+          productType = product.productType;
+          productTags = product.tags?.join(', ');
+          // Use product type as fallback category
+          productCategory = productType ? productType.charAt(0).toUpperCase() + productType.slice(1) : null;
+        }
+      } catch (productError) {
+        console.warn("Failed to fetch product details from Shopify:", productError.message);
+        // Continue without product details
+      }
 
       const newQuestion = await prisma.question.create({
         data: {
@@ -50,6 +84,10 @@ export const action = async ({ request }) => {
           customerName,
           customerEmail,
           question,
+          isPublished,
+          productType,
+          productCategory,
+          productTags,
         },
       });
 
