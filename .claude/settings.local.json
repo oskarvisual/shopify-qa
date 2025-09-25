@@ -16,7 +16,8 @@
       "Bash(git add:*)",
       "Bash(shopify:*)",
       "Bash(rm:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
