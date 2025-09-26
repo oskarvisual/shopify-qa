@@ -167,8 +167,17 @@ export default function QuestionsListPage() {
       <IndexTable.Cell>{answers.length}</IndexTable.Cell>
       <IndexTable.Cell><Text tone={isPublished ? "success" : "subdued"}>{isPublished ? "Published" : "Pending"}</Text></IndexTable.Cell>
       <IndexTable.Cell><BlockStack gap="100"><Text variant="bodyMd" fontWeight="semibold">{customerName || "Anonymous"}</Text>{customerEmail && <Text variant="bodySm" tone="subdued">{customerEmail}</Text>}</BlockStack></IndexTable.Cell>
+      <IndexTable.Cell>
+        {productMap[productId] ? (
+          <InlineStack gap="200" blockAlign="center">
+            <Button size="slim" url={`https://${shop}/products/${productMap[productId].handle}`} target="_blank">View</Button>
+            <Button size="slim" url={`https://${shop}/admin/products/${productId}`} target="_blank">Edit</Button>
+          </InlineStack>
+        ) : (
+          "Product not found"
+        )}
+      </IndexTable.Cell>
       <IndexTable.Cell>{new Date(createdAt).toLocaleDateString()}</IndexTable.Cell>
-      <IndexTable.Cell>{productMap[productId] ? <Link to={`https://${shop}/admin/products/${productId}`} target="_blank">{productMap[productId].title}</Link> : "Product not found"}</IndexTable.Cell>
     </IndexTable.Row>
   ));
 
@@ -202,7 +211,7 @@ export default function QuestionsListPage() {
                 <Badge tone="info">Filtering by {activeFilter.type}: {activeFilter.value}</Badge>
               )}
 
-              <IndexTable resourceName={resourceName} itemCount={questions.length} headings={[{ title: "Question" }, { title: "Answers" }, { title: "Status" }, { title: "Author" }, { title: "Date" }, { title: "Product" }]} selectable={false} stickyFirstColumn={true}>
+              <IndexTable resourceName={resourceName} itemCount={questions.length} headings={[{ title: "Question" }, { title: "Answers" }, { title: "Status" }, { title: "Author" }, { title: "Product" }, { title: "Date" }]} selectable={false} stickyFirstColumn={true}>
                 {rowMarkup}
               </IndexTable>
 

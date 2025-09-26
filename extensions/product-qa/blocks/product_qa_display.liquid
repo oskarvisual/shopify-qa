@@ -104,7 +104,7 @@
   /* BLOCK STYLE - Card appearance */
   .qa-item {
     background: {{ block.settings.block_bg_color | default: '#f8f9fa' }} !important;
-    border: 1px solid {{ block.settings.block_border_color | default: '#dee2e6' }} !important;
+    border: 1px solid {{ block.settings.border_color | default: '#dee2e6' }} !important;
     border-radius: 8px !important;
     padding: 20px !important;
     margin-bottom: 20px !important;
@@ -119,7 +119,7 @@
     padding: 15px 0 !important;
     margin-bottom: 0 !important;
     box-shadow: none !important;
-    border-bottom: 1px solid {{ block.settings.separator_color | default: '#e1e1e1' }} !important;
+    border-bottom: 1px solid {{ block.settings.border_color | default: '#dee2e6' }} !important;
   }
   {% endif %}
 
@@ -166,7 +166,7 @@
   }
 
   .qa-meta {
-    color: {{ block.settings.meta_text_color | default: '#666666' }};
+    color: #666666;
     font-size: 12px;
   }
 
@@ -267,12 +267,13 @@
     }
 
     // Configuration from block settings
-    const showMeta = {{ block.settings.show_meta | json }};
+    const showQuestionMeta = {{ block.settings.show_question_meta | json }};
+    const showAnswerMeta = {{ block.settings.show_answer_meta | json }};
     const showVotes = {{ block.settings.show_votes | json }};
 
     const textSettings = {
-      questionLabel: "Question:",
-      answerLabel: "Answers:",
+      questionLabel: "{{ block.settings.question_label | default: 'Question:' }}",
+      answerLabel: "{{ block.settings.answer_label | default: 'Answers:' }}",
       askedBy: "{{ block.settings.asked_by_text | default: 'Asked by' }}",
       answeredBy: "{{ block.settings.answered_by_text | default: 'Answered by' }}",
       onDate: "{{ block.settings.on_date_text | default: 'on' }}",
@@ -444,7 +445,7 @@
     function formatQuestion(question) {
       // Question meta
       const questionMeta = [];
-      if (showMeta) {
+      if (showQuestionMeta) {
         if (question.customerName) {
           questionMeta.push(`${textSettings.askedBy} ${question.customerName}`);
         }
@@ -475,7 +476,7 @@
 
         question.answers.forEach((answer, index) => {
           const answerMeta = [];
-          if (showMeta) {
+          if (showAnswerMeta) {
             if (answer.authorName) {
               answerMeta.push(`${textSettings.answeredBy} ${answer.authorName}`);
             }
@@ -785,13 +786,6 @@
     },
     {
       "type": "color",
-      "id": "separator_color",
-      "label": "Separator Color",
-      "default": "#e1e1e1",
-      "info": "Only applies when Display Style is 'Separator'"
-    },
-    {
-      "type": "color",
       "id": "block_bg_color",
       "label": "Block Background Color",
       "default": "#f8f9fa",
@@ -799,27 +793,42 @@
     },
     {
       "type": "color",
-      "id": "block_border_color",
-      "label": "Block Border Color",
+      "id": "border_color",
+      "label": "Border Color",
       "default": "#dee2e6",
-      "info": "Only applies when Display Style is 'Block'"
+      "info": "Used for the separator line or the block border."
     },
     {
       "type": "checkbox",
-      "id": "show_meta",
-      "label": "Show Author and Date",
-      "default": true,
-      "info": "Controls visibility for question and answer metadata."
+      "id": "show_question_meta",
+      "label": "Show Question Author and Date",
+      "default": true
     },
     {
-      "type": "color",
-      "id": "meta_text_color",
-      "label": "Meta Text Color",
-      "default": "#666666"
+      "type": "checkbox",
+      "id": "show_answer_meta",
+      "label": "Show Answer Author and Date",
+      "default": true
     },
     {
       "type": "header",
-      "content": "Voting"
+      "content": "Labels"
+    },
+    {
+      "type": "text",
+      "id": "question_label",
+      "label": "Question Label",
+      "default": "Question:"
+    },
+    {
+      "type": "text",
+      "id": "answer_label",
+      "label": "Answers Label",
+      "default": "Answers:"
+    },
+    {
+      "type": "header",
+      "content": "Buttons Styling"
     },
     {
       "type": "checkbox",
@@ -832,10 +841,6 @@
       "id": "vote_button_color",
       "label": "Vote Button Color",
       "default": "#007cba"
-    },
-    {
-      "type": "header",
-      "content": "Ask Button Styling"
     },
     {
       "type": "color",
