@@ -116,14 +116,13 @@ export default function QuestionsListPage() {
   const [statusFilter, setStatusFilter] = useState(status);
 
   useEffect(() => {
-    // This effect handles debounced navigation for search and status filters
     const params = new URLSearchParams(window.location.search);
     const currentQuery = params.get('query') || '';
     const currentStatus = params.get('status') || 'all';
 
     if (searchQuery !== currentQuery || statusFilter !== currentStatus) {
       const timeoutId = setTimeout(() => {
-        params.set('page', '1'); // Reset to first page on new filter
+        params.set('page', '1');
         if (searchQuery.trim()) {
           params.set("query", searchQuery.trim());
         } else {
@@ -148,7 +147,9 @@ export default function QuestionsListPage() {
       <IndexTable.Cell>
         <div style={{ maxWidth: '400px', whiteSpace: 'normal', wordWrap: 'break-word' }}>
           <BlockStack gap="300">
-            <Text variant="bodyMd" as="p">{question}</Text>
+            <Link to={`/app/questions/${id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+              <Text variant="bodyMd" as="p">{question}</Text>
+            </Link>
             <InlineStack gap="200">
               <Button variant="primary" size="slim" onClick={() => navigate(`/app/questions/${id}`)}>Edit</Button>
               <Button size="slim" onClick={() => navigate(`/app/questions/${id}#answer-form`)}>Add Answer</Button>
