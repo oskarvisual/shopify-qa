@@ -22,6 +22,9 @@ export default function App() {
         <Link to="/app" rel="home">
           Questions Dashboard
         </Link>
+        <Link to="/app/questions-list">
+          Questions & Answers
+        </Link>
         <Link to="/app/import-export">
           Import/Export
         </Link>

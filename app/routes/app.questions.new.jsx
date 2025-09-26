@@ -13,13 +13,12 @@ import {
   Select,
   Thumbnail,
   Badge,
-  Link as PolarisLink,
 } from "@shopify/polaris";
-import { ExternalIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
+const CHARACTER_LIMIT = 500;
 
 const GET_PRODUCT_DETAILS_QUERY = `
   query getProductDetails($id: ID!) {
@@ -46,6 +45,10 @@ export const action = async ({ request }) => {
     return json({ error: "Question text and product are required" }, { status: 400 });
   }
 
+  if (questionText.length > CHARACTER_LIMIT) {
+    return json({ error: `Question cannot exceed ${CHARACTER_LIMIT} characters.` }, { status: 400 });
+  }
+
   try {
     let productType = null;
     let productCategory = null;
@@ -63,12 +66,10 @@ export const action = async ({ request }) => {
       if (product) {
         productType = product.productType;
         productTags = product.tags?.join(', ');
-        // Use product type as fallback category
         productCategory = productType ? productType.charAt(0).toUpperCase() + productType.slice(1) : null;
       }
     } catch (productError) {
       console.warn("Failed to fetch product details from Shopify:", productError.message);
-      // Continue without product details
     }
 
     const newQuestion = await prisma.question.create({
@@ -106,15 +107,6 @@ export default function NewQuestionPage() {
   const [isPublished, setIsPublished] = useState(false);
 
   const handleSubmit = () => {
-    if (!questionText.trim()) {
-      alert("Please enter a question");
-      return;
-    }
-    if (!productId || productId === "") {
-      alert("Please select a product");
-      return;
-    }
-
     const formData = new FormData();
     formData.append("questionText", questionText);
     formData.append("productId", productId);
@@ -129,7 +121,6 @@ export default function NewQuestionPage() {
     { label: "Pending", value: "false" },
   ];
 
-  // Create product options for select
   const productOptions = [
     { label: "Select a product...", value: "", disabled: true },
     ...products.map(product => ({
@@ -138,33 +129,26 @@ export default function NewQuestionPage() {
     }))
   ];
 
-  // Find selected product for preview
   const selectedProduct = products.find(p =>
     p.id.replace('gid://shopify/Product/', '') === productId
   );
 
   return (
-    <Page
-      title="New Question"
-      backAction={{content: "Back", onAction: () => navigate("/app")}}
-    >
+    <Page title="New Question" backAction={{ content: "Questions", onAction: () => navigate("/app/questions-list") }}>
       <Layout>
         <Layout.Section>
           {actionData?.error && (
-            <BlockStack gap="200">
-              <Text as="p" variant="bodyMd" tone="critical">
-                {actionData.error}
-              </Text>
-            </BlockStack>
+            <Card>
+              <BlockStack gap="200">
+                <Text as="p" variant="bodyMd" tone="critical">{actionData.error}</Text>
+              </BlockStack>
+            </Card>
           )}
 
-          <Card>
-            <BlockStack gap="500">
-              <Text as="h2" variant="headingMd">
-                Create New Question
-              </Text>
+          <div style={{ marginBottom: '1rem' }} />
 
-              {/* Product Selector */}
+          <Card>
+            <BlockStack gap="400">
               <Select
                 label="Product"
                 options={productOptions}
@@ -173,42 +157,22 @@ export default function NewQuestionPage() {
                 helpText="Select the product this question is about"
               />
 
-              {/* Product Preview */}
               {selectedProduct && (
-                <Card>
-                  <BlockStack gap="400">
-                    <Text as="h3" variant="headingSm">Product Preview</Text>
-                    <InlineStack gap="400" blockAlign="center">
-                      <Thumbnail
-                        source={selectedProduct.featuredImage?.url || ""}
-                        alt={selectedProduct.featuredImage?.altText || selectedProduct.title}
-                        size="large"
-                      />
+                <Card background="bg-surface-secondary">
+                  <BlockStack gap="300">
+                    <InlineStack gap="400" blockAlign="center" wrap={false}>
+                      <Thumbnail source={selectedProduct.featuredImage?.url || ""} alt={selectedProduct.title} size="medium" />
                       <BlockStack gap="200">
                         <InlineStack gap="200" blockAlign="center">
                           <Text as="p" variant="headingSm">{selectedProduct.title}</Text>
-                          <Badge tone={selectedProduct.status === 'ACTIVE' ? 'success' : 'attention'}>
-                            {selectedProduct.status}
-                          </Badge>
+                          <Badge tone={selectedProduct.status === 'ACTIVE' ? 'success' : 'attention'}>{selectedProduct.status}</Badge>
                         </InlineStack>
-                        {selectedProduct.description && (
-                          <Text as="p" variant="bodyMd" tone="subdued">
-                            {selectedProduct.description}
-                          </Text>
-                        )}
                         <InlineStack gap="200">
-                          <Button
-                            onClick={() => window.open(`https://${shop}/admin/products/${selectedProduct.id.replace('gid://shopify/Product/', '')}`, '_parent')}
-                            size="slim"
-                          >
+                          <Button variant="primary" size="slim" onClick={() => window.open(`https://${shop}/admin/products/${selectedProduct.id.replace('gid://shopify/Product/', '')}`, '_parent')}>
                             Edit Product
                           </Button>
-                          <Button
-                            onClick={() => window.open(`https://${shop}/products/${selectedProduct.handle}`, '_blank')}
-                            size="slim"
-                            variant="plain"
-                          >
-                            View Product
+                          <Button size="slim" onClick={() => window.open(`https://${shop}/products/${selectedProduct.handle}`, '_blank')}>
+                            View on Storefront
                           </Button>
                         </InlineStack>
                       </BlockStack>
@@ -224,6 +188,8 @@ export default function NewQuestionPage() {
                 multiline={3}
                 autoComplete="off"
                 helpText="Enter the customer's question"
+                maxLength={CHARACTER_LIMIT}
+                showCharacterCount
               />
               <TextField
                 label="Customer Name"
@@ -247,13 +213,9 @@ export default function NewQuestionPage() {
                 value={isPublished ? "true" : "false"}
                 helpText="Choose whether to publish immediately or keep as pending"
               />
-              <InlineStack align="end">
-                <Button onClick={() => navigate("/app")}>
-                  Cancel
-                </Button>
-                <Button variant="primary" onClick={handleSubmit}>
-                  Create Question
-                </Button>
+              <InlineStack align="end" gap="200">
+                <Button onClick={() => navigate("/app/questions-list")}>Cancel</Button>
+                <Button variant="primary" onClick={handleSubmit} disabled={!productId || !questionText}>Create Question</Button>
               </InlineStack>
             </BlockStack>
           </Card>

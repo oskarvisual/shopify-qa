@@ -21,7 +21,8 @@
 
       <div class="form-group">
         <label for="question">{{ block.settings.question_label | default: 'Your Question' }}</label>
-        <textarea id="question" name="question" rows="4" required></textarea>
+        <textarea id="question" name="question" rows="4" required maxlength="500"></textarea>
+        <div class="char-counter">0 / 500</div>
       </div>
 
       <input type="hidden" name="shop" value="{{ shop.domain }}">
@@ -54,7 +55,8 @@
 
         <div class="form-group">
           <label for="question-modal" id="question-label-modal">Your Question</label>
-          <textarea id="question-modal" name="question" rows="4" required></textarea>
+          <textarea id="question-modal" name="question" rows="4" required maxlength="500"></textarea>
+          <div class="char-counter-modal">0 / 500</div>
         </div>
 
         <input type="hidden" name="shop" value="{{ shop.domain }}">
@@ -78,6 +80,12 @@
     {% endif %}
   }
 
+  .char-counter, .char-counter-modal {
+    text-align: right;
+    font-size: 12px;
+    color: #6B7280;
+    margin-top: 4px;
+  }
 
   .qa-modal {
     position: fixed;
@@ -276,7 +284,6 @@
   document.addEventListener('DOMContentLoaded', function() {
     const productId = document.querySelector('[data-product-id]')?.dataset.productId;
     const sharedModal = document.getElementById('qa-shared-modal');
-    const openModalBtn = document.getElementById('open-modal-btn');
     const qaForm = document.getElementById('qa-form');
     const qaFormModal = document.getElementById('qa-form-modal');
     const formMessage = document.getElementById('form-message');
@@ -287,10 +294,34 @@
       return;
     }
 
-    // Global function to open shared modal (can be called from display section)
+    // Character counter setup
+    function setupCharCounter(textarea, counter) {
+      textarea.addEventListener('input', () => {
+        const count = textarea.value.length;
+        counter.textContent = `${count} / 500`;
+        if (count > 500) {
+          counter.style.color = '#d9534f';
+        } else {
+          counter.style.color = '#6B7280';
+        }
+      });
+    }
+
+    const questionTextarea = document.getElementById('question');
+    const questionCounter = qaForm.querySelector('.char-counter');
+    if (questionTextarea && questionCounter) {
+      setupCharCounter(questionTextarea, questionCounter);
+    }
+
+    const questionTextareaModal = document.getElementById('question-modal');
+    const questionCounterModal = qaFormModal.querySelector('.char-counter-modal');
+    if (questionTextareaModal && questionCounterModal) {
+      setupCharCounter(questionTextareaModal, questionCounterModal);
+    }
+
+    // Global function to open shared modal
     window.openQAModal = function() {
       if (sharedModal && window.qaModalSettings) {
-        // Update all modal content from display section settings
         const modalTitle = document.getElementById('qa-modal-title');
         const nameLabel = document.getElementById('name-label-modal');
         const nameInput = document.getElementById('customer-name-modal');
@@ -318,72 +349,58 @@
         sharedModal.style.display = 'none';
         document.body.style.overflow = '';
         if (qaFormModal) qaFormModal.reset();
-        hideMessage(true); // true for modal
+        hideMessage(true);
       }
     };
 
-    // Modal close events - needed for display section's ask button
     if (sharedModal) {
       const closeModalBtn = sharedModal.querySelector('.close-modal');
-
-      if (closeModalBtn) {
-        closeModalBtn.addEventListener('click', window.closeQAModal);
-      }
-
+      if (closeModalBtn) closeModalBtn.addEventListener('click', window.closeQAModal);
       sharedModal.addEventListener('click', (e) => {
-        if (e.target === sharedModal) {
-          window.closeQAModal();
-        }
+        if (e.target === sharedModal) window.closeQAModal();
       });
     }
 
-    // Escape key to close modal
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && sharedModal && sharedModal.style.display === 'block') {
         window.closeQAModal();
       }
     });
 
-    // Form submission handler
     function handleFormSubmit(form, isModal = false) {
       form.addEventListener('submit', function(e) {
         e.preventDefault();
-
         const formData = new FormData(this);
-        const submitBtn = this.querySelector('button[type="submit"]');
+        const questionValue = formData.get('question');
 
-        // Add loading state
+        if (questionValue.length > 500) {
+          showMessage('Your question cannot exceed 500 characters.', 'error', isModal);
+          return;
+        }
+
+        const submitBtn = this.querySelector('button[type="submit"]');
         const originalText = submitBtn.textContent;
         submitBtn.textContent = 'Submitting...';
         submitBtn.disabled = true;
         this.classList.add('form-loading');
 
-        fetch('/apps/a/api/public/questions', {
-          method: 'POST',
-          body: formData
-        })
+        fetch('/apps/a/api/public/questions', { method: 'POST', body: formData })
         .then(response => response.json())
         .then(data => {
           if (data.question || data.success) {
             showMessage('Thank you! Your question has been submitted successfully.', 'success', isModal);
             this.reset();
-
-            // Reload questions if display section exists
-            if (window.reloadQuestions) {
-              setTimeout(() => window.reloadQuestions(), 1000);
-            }
-
-            // Close modal after success if it's the modal form
+            if (window.reloadQuestions) setTimeout(() => window.reloadQuestions(), 1000);
             if (isModal && sharedModal && sharedModal.style.display === 'block') {
               setTimeout(() => window.closeQAModal(), 2000);
             }
           } else {
-            showMessage(data.error || 'Sorry, there was an error submitting your question. Please try again.', 'error', isModal);
+            showMessage(data.error || 'Sorry, there was an error submitting your question.', 'error', isModal);
           }
         })
         .catch(error => {
           console.error('Error submitting question:', error);
-          showMessage('Sorry, there was an error submitting your question. Please try again.', 'error', isModal);
+          showMessage('Sorry, there was an error submitting your question.', 'error', isModal);
         })
         .finally(() => {
           submitBtn.textContent = originalText;
@@ -393,13 +410,8 @@
       });
     }
 
-    // Attach form submission handlers
-    if (qaForm) {
-      handleFormSubmit(qaForm, false);
-    }
-    if (qaFormModal) {
-      handleFormSubmit(qaFormModal, true);
-    }
+    if (qaForm) handleFormSubmit(qaForm, false);
+    if (qaFormModal) handleFormSubmit(qaFormModal, true);
 
     function showMessage(message, type, isModal = false) {
       const messageElement = isModal ? formMessageModal : formMessage;

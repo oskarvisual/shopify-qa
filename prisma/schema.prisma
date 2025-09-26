@@ -40,7 +40,7 @@ model Question {
   productTags      String?   // Comma-separated tags (e.g., "Accessory, Sport, Winter")
   customerName     String?
   customerEmail    String?
-  question         String
+  question         String    @db.Text
   isPublished      Boolean   @default(false)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -59,7 +59,7 @@ model Answer {
   questionId String
   authorName String
   authorEmail String?
-  answer     String
+  answer     String   @db.Text
   isPublished Boolean @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
