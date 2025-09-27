@@ -81,3 +81,18 @@ model VoteLog {
   @@unique([questionId, identifier, shop])
   @@index([questionId])
 }
+
+model WebhookSetting {
+  id              String    @id @default(cuid())
+  shop            String    @unique
+  url             String?
+  newQuestion     Boolean   @default(false)
+  editQuestion    Boolean   @default(false)
+  deleteQuestion  Boolean   @default(false)
+  newAnswer       Boolean   @default(false)
+  editAnswer      Boolean   @default(false)
+  deleteAnswer    Boolean   @default(false)
+  approveQuestion Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}

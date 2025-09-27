@@ -1,6 +1,7 @@
 import { json } from "@remix-run/node";
 import { PrismaClient } from "@prisma/client";
 import { cors } from "remix-utils/cors";
+import { triggerWebhook } from "../../lib/webhook.server.js";
 import { shopify } from "../shopify.server";
 
 const prisma = new PrismaClient();
@@ -155,6 +156,14 @@ export const action = async ({ request }) => {
         productCategory,
         productTags,
       },
+      include: { answers: true }, // Include answers for the webhook payload
+    });
+
+    // Trigger webhook
+    await triggerWebhook({
+      shop,
+      type: "question.created",
+      payload: newQuestion,
     });
 
     const response = json({ question: newQuestion });

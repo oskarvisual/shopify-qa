@@ -15,6 +15,7 @@ import {
   Badge,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
+import { triggerWebhook } from "../lib/webhook.server.js";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -84,7 +85,16 @@ export const action = async ({ request }) => {
         productCategory,
         productTags,
       },
+      include: { answers: true }, // Include answers for the webhook payload
     });
+
+    // Trigger webhook
+    await triggerWebhook({
+      shop,
+      type: "question.created",
+      payload: newQuestion,
+    });
+
     return redirect(`/app/questions/${newQuestion.id}`);
   } catch (error) {
     console.error("Error creating question:", error);

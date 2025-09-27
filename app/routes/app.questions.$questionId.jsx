@@ -19,6 +19,7 @@ import {
   Badge,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
+import { triggerWebhook } from "../lib/webhook.server.js";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -97,17 +98,35 @@ export const action = async ({ request, params }) => {
     const isPublished = formData.get("isPublished") === "true";
 
     try {
-      await prisma.question.update({
+      const updatedQuestion = await prisma.question.update({
         where: { id: questionId, shop: shop },
         data: { question: questionText, customerName, customerEmail, isPublished },
+        include: { answers: true },
       });
+
+      await triggerWebhook({
+        shop,
+        type: "question.updated",
+        payload: updatedQuestion,
+      });
+
       return json({ success: true, message: "Question updated successfully" });
     } catch (error) {
       return json({ error: "Failed to update question" }, { status: 500 });
     }
   } else if (actionType === "deleteQuestion") {
     try {
-      await prisma.question.delete({ where: { id: questionId, shop: shop } });
+      const deletedQuestion = await prisma.question.delete({ 
+        where: { id: questionId, shop: shop },
+        include: { answers: true },
+      });
+
+      await triggerWebhook({
+        shop,
+        type: "question.deleted",
+        payload: deletedQuestion,
+      });
+
       return redirect("/app/questions-list");
     } catch (error) {
       return json({ error: "Failed to delete question" }, { status: 500 });
@@ -121,9 +140,17 @@ export const action = async ({ request, params }) => {
     const authorEmail = formData.get("authorEmail");
 
     try {
-      await prisma.answer.create({
+      const newAnswer = await prisma.answer.create({
         data: { questionId, answer: answerText, authorName, authorEmail, isPublished: true },
+        include: { question: true },
       });
+
+      await triggerWebhook({
+        shop,
+        type: "answer.created",
+        payload: newAnswer,
+      });
+
       return json({ success: true, message: "Answer added successfully" });
     } catch (error) {
       return json({ error: "Failed to add answer" }, { status: 500 });
@@ -139,10 +166,18 @@ export const action = async ({ request, params }) => {
     const isPublished = formData.get("isPublished") === "true";
 
     try {
-      await prisma.answer.update({
+      const updatedAnswer = await prisma.answer.update({
         where: { id: answerId },
         data: { answer: answerText, authorName, authorEmail, isPublished },
+        include: { question: true },
       });
+
+      await triggerWebhook({
+        shop,
+        type: "answer.updated",
+        payload: updatedAnswer,
+      });
+
       return json({ success: true, message: "Answer updated successfully" });
     } catch (error) {
       return json({ error: "Failed to update answer" }, { status: 500 });
@@ -150,7 +185,17 @@ export const action = async ({ request, params }) => {
   } else if (actionType === "deleteAnswer") {
     const answerId = formData.get("answerId");
     try {
-      await prisma.answer.delete({ where: { id: answerId } });
+      const deletedAnswer = await prisma.answer.delete({ 
+        where: { id: answerId },
+        include: { question: true },
+      });
+
+      await triggerWebhook({
+        shop,
+        type: "answer.deleted",
+        payload: deletedAnswer,
+      });
+
       return json({ success: true, message: "Answer deleted successfully" });
     } catch (error) {
       return json({ error: "Failed to delete answer" }, { status: 500 });

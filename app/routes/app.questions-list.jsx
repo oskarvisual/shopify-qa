@@ -16,6 +16,7 @@ import {
   Badge,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
+import { triggerWebhook } from "../lib/webhook.server.js";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -32,7 +33,19 @@ export const action = async ({ request }) => {
 
   if (actionType === "approve" && questionId) {
     try {
-      await prisma.question.updateMany({ where: { id: questionId, shop }, data: { isPublished: true } });
+      const question = await prisma.question.update({
+        where: { id: questionId, shop },
+        data: { isPublished: true },
+        include: { answers: true },
+      });
+
+      // Trigger webhook
+      await triggerWebhook({
+        shop,
+        type: "question.approved",
+        payload: question,
+      });
+
       return json({ success: true });
     } catch (error) {
       return json({ success: false, error: "Failed to approve question." }, { status: 500 });
