@@ -1,7 +1,7 @@
 import { json } from "@remix-run/node";
 import { PrismaClient } from "@prisma/client";
 import { cors } from "remix-utils/cors";
-import { triggerWebhook } from "../../lib/webhook.server.js";
+import { triggerWebhook } from "../lib/webhook.server.js";
 import { shopify } from "../shopify.server";
 
 const prisma = new PrismaClient();

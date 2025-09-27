@@ -1,6 +1,6 @@
-
 import { json } from "@remix-run/node";
 import { useLoaderData, Form } from "@remix-run/react";
+import { useState, useCallback } from "react";
 import {
   Page,
   Layout,
@@ -34,13 +34,13 @@ export const action = async ({ request }) => {
 
   const data = {
     url: formData.get("url"),
-    newQuestion: formData.get("newQuestion") === "on",
-    editQuestion: formData.get("editQuestion") === "on",
-    deleteQuestion: formData.get("deleteQuestion") === "on",
-    newAnswer: formData.get("newAnswer") === "on",
-    editAnswer: formData.get("editAnswer") === "on",
-    deleteAnswer: formData.get("deleteAnswer") === "on",
-    approveQuestion: formData.get("approveQuestion") === "on",
+    newQuestion: formData.get("newQuestion") === "true",
+    editQuestion: formData.get("editQuestion") === "true",
+    deleteQuestion: formData.get("deleteQuestion") === "true",
+    newAnswer: formData.get("newAnswer") === "true",
+    editAnswer: formData.get("editAnswer") === "true",
+    deleteAnswer: formData.get("deleteAnswer") === "true",
+    approveQuestion: formData.get("approveQuestion") === "true",
   };
 
   await prisma.webhookSetting.upsert({
@@ -54,6 +54,11 @@ export const action = async ({ request }) => {
 
 export default function SettingsPage() {
   const { webhookSettings } = useLoaderData();
+  const [formState, setFormState] = useState(webhookSettings);
+
+  const handleCheckboxChange = useCallback((key) => (value) => {
+    setFormState((prev) => ({ ...prev, [key]: value }));
+  }, []);
 
   return (
     <Page title="Settings">
@@ -66,44 +71,52 @@ export default function SettingsPage() {
                 <TextField
                   label="Webhook Endpoint URL"
                   name="url"
-                  defaultValue={webhookSettings.url || ""}
+                  value={formState.url || ""}
+                  onChange={(value) => setFormState((prev) => ({ ...prev, url: value }))}
                   autoComplete="off"
                 />
                 <BlockStack gap="200">
+                  <input type="hidden" name="newQuestion" value={formState.newQuestion ? "true" : "false"} />
                   <Checkbox
                     label="New Question"
-                    name="newQuestion"
-                    defaultChecked={webhookSettings.newQuestion}
+                    checked={formState.newQuestion}
+                    onChange={handleCheckboxChange("newQuestion")}
                   />
+                  <input type="hidden" name="editQuestion" value={formState.editQuestion ? "true" : "false"} />
                   <Checkbox
                     label="Edit Question"
-                    name="editQuestion"
-                    defaultChecked={webhookSettings.editQuestion}
+                    checked={formState.editQuestion}
+                    onChange={handleCheckboxChange("editQuestion")}
                   />
+                  <input type="hidden" name="deleteQuestion" value={formState.deleteQuestion ? "true" : "false"} />
                   <Checkbox
                     label="Delete Question"
-                    name="deleteQuestion"
-                    defaultChecked={webhookSettings.deleteQuestion}
+                    checked={formState.deleteQuestion}
+                    onChange={handleCheckboxChange("deleteQuestion")}
                   />
+                  <input type="hidden" name="newAnswer" value={formState.newAnswer ? "true" : "false"} />
                   <Checkbox
                     label="New Answer"
-                    name="newAnswer"
-                    defaultChecked={webhookSettings.newAnswer}
+                    checked={formState.newAnswer}
+                    onChange={handleCheckboxChange("newAnswer")}
                   />
+                  <input type="hidden" name="editAnswer" value={formState.editAnswer ? "true" : "false"} />
                   <Checkbox
                     label="Edit Answer"
-                    name="editAnswer"
-                    defaultChecked={webhookSettings.editAnswer}
+                    checked={formState.editAnswer}
+                    onChange={handleCheckboxChange("editAnswer")}
                   />
+                  <input type="hidden" name="deleteAnswer" value={formState.deleteAnswer ? "true" : "false"} />
                   <Checkbox
                     label="Delete Answer"
-                    name="deleteAnswer"
-                    defaultChecked={webhookSettings.deleteAnswer}
+                    checked={formState.deleteAnswer}
+                    onChange={handleCheckboxChange("deleteAnswer")}
                   />
+                  <input type="hidden" name="approveQuestion" value={formState.approveQuestion ? "true" : "false"} />
                   <Checkbox
                     label="Approve Question"
-                    name="approveQuestion"
-                    defaultChecked={webhookSettings.approveQuestion}
+                    checked={formState.approveQuestion}
+                    onChange={handleCheckboxChange("approveQuestion")}
                   />
                 </BlockStack>
                 <Button submit>Save</Button>
