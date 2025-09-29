@@ -1,39 +1,42 @@
+import prisma from '../db.server';
 
-import { PrismaClient } from "@prisma/client";
+/**
+ * @typedef {'newQuestion' | 'editQuestion' | 'deleteQuestion' | 'newAnswer' | 'editAnswer' | 'deleteAnswer' | 'approveQuestion' | 'newVote'} WebhookTopic
+ */
 
-const prisma = new PrismaClient();
-
-const actionTypeToSettingMap = {
-  "question.created": "newQuestion",
-  "question.updated": "editQuestion",
-  "question.deleted": "deleteQuestion",
-  "question.approved": "approveQuestion",
-  "answer.created": "newAnswer",
-  "answer.updated": "editAnswer",
-  "answer.deleted": "deleteAnswer",
-};
-
-export const triggerWebhook = async ({ shop, type, payload }) => {
-  const webhookSettings = await prisma.webhookSetting.findUnique({
-    where: { shop },
-  });
-
-  if (!webhookSettings?.url) {
-    return;
-  }
-
-  const settingName = actionTypeToSettingMap[type];
-  if (!settingName || !webhookSettings[settingName]) {
-    return;
-  }
-
+/**
+ * Triggers a webhook if it's configured for the given shop and topic.
+ * @param {string} shop - The shop's domain (e.g., 'your-shop.myshopify.com').
+ * @param {WebhookTopic} topic - The webhook topic to trigger.
+ * @param {object} payload - The data to send in the webhook POST request.
+ */
+export async function triggerWebhook(shop, topic, payload) {
   try {
-    await fetch(webhookSettings.url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, payload }),
+    const settings = await prisma.webhookSetting.findUnique({
+      where: { shop },
     });
+
+    // Check if there's a URL and the specific topic is enabled
+    if (settings && settings.url && settings[topic]) {
+      console.log(`Triggering '${topic}' webhook for ${shop} to ${settings.url}`);
+
+      const response = await fetch(settings.url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Shop-Domain': shop,
+          'X-Webhook-Topic': topic,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        console.error(
+          `Webhook for ${shop} failed with status ${response.status}: ${await response.text()}`
+        );
+      }
+    }
   } catch (error) {
-    console.error(`Failed to send '${type}' webhook:`, error);
+    console.error(`Error triggering webhook for shop ${shop}:`, error);
   }
-};
+}

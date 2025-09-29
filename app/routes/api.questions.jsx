@@ -1,8 +1,7 @@
 import { json } from "@remix-run/node";
-import { PrismaClient } from "@prisma/client";
+import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
-
-const prisma = new PrismaClient();
+import { sendNewQuestionNotification } from "../lib/email.server.js";
 
 const GET_PRODUCT_DETAILS_QUERY = `
   query getProductDetails($id: ID!) {
@@ -90,6 +89,9 @@ export const action = async ({ request }) => {
           productTags,
         },
       });
+
+      // Send notification email to admins
+      await sendNewQuestionNotification(session.shop, newQuestion);
 
       return json({ question: newQuestion });
     }

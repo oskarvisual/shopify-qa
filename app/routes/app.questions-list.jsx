@@ -40,10 +40,11 @@ export const action = async ({ request }) => {
       });
 
       // Trigger webhook
-      await triggerWebhook({
+      await triggerWebhook(shop, "approveQuestion", {
+        action: "approve",
+        entity: "question",
         shop,
-        type: "question.approved",
-        payload: question,
+        data: question
       });
 
       return json({ success: true });

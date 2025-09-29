@@ -17,7 +17,8 @@
       "Bash(shopify:*)",
       "Bash(rm:*)",
       "Bash(git push:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(ngrok:*)"
     ],
     "deny": [],
     "ask": []

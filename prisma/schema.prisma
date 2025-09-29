@@ -55,17 +55,17 @@ model Question {
 }
 
 model Answer {
-  id         String   @id @default(cuid())
-  questionId String
-  authorName String
+  id          String   @id @default(cuid())
+  questionId  String
+  authorName  String
   authorEmail String?
-  answer     String   @db.Text
-  isPublished Boolean @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  
-  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  
+  answer      String   @db.Text
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
   @@index([questionId])
 }
 
@@ -76,7 +76,7 @@ model VoteLog {
   identifier String // Will store IP address or customer ID/email
   createdAt  DateTime @default(now())
 
-  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@unique([questionId, identifier, shop])
   @@index([questionId])
@@ -93,6 +93,34 @@ model WebhookSetting {
   editAnswer      Boolean   @default(false)
   deleteAnswer    Boolean   @default(false)
   approveQuestion Boolean   @default(false)
+  newVote         Boolean   @default(false)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+}
+
+model EmailSetting {
+  id                   String    @id @default(cuid())
+  shop                 String    @unique
+  notificationsEnabled Boolean   @default(false)
+  notifyOnNewQuestion  Boolean   @default(false)
+  notificationEmails   String?   @db.Text
+  smtpProvider         String    @default("APP") // "APP" or "CUSTOM"
+  smtpHost             String?
+  smtpPort             Int?
+  smtpUser             String?
+  // TODO: This should be encrypted at rest
+  smtpPass             String?
+  smtpSecure           Boolean   @default(true)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+}
+
+model Config {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.LongText
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
 }

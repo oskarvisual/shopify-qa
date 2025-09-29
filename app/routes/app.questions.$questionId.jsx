@@ -1,3 +1,4 @@
+import prisma from "../db.server";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, Form, useActionData, useSubmit, useNavigate } from "@remix-run/react";
 import { useState, useCallback, useEffect } from "react";
@@ -17,12 +18,11 @@ import {
   ButtonGroup,
   Thumbnail,
   Badge,
+  Banner,
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { triggerWebhook } from "../lib/webhook.server.js";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { sendNewAnswerNotification } from "../lib/email.server.js";
 const CHARACTER_LIMIT = 500;
 
 // Loader to fetch a specific question and its answers
@@ -38,6 +38,10 @@ export const loader = async ({ request, params }) => {
   const question = await prisma.question.findUnique({
     where: { id: questionId, shop: shop },
     include: { answers: { orderBy: { createdAt: "asc" } } },
+  });
+
+  const emailSettings = await prisma.emailSetting.findUnique({
+    where: { shop },
   });
 
   if (!question) {
@@ -72,7 +76,7 @@ export const loader = async ({ request, params }) => {
     }
   }
 
-  return json({ question, productDetails, shop });
+  return json({ question, productDetails, shop, emailSettings: emailSettings || {} });
 };
 
 // Action to handle updating the question or managing answers
@@ -104,10 +108,11 @@ export const action = async ({ request, params }) => {
         include: { answers: true },
       });
 
-      await triggerWebhook({
+      await triggerWebhook(shop, "editQuestion", {
+        action: "update",
+        entity: "question",
         shop,
-        type: "question.updated",
-        payload: updatedQuestion,
+        data: updatedQuestion
       });
 
       return json({ success: true, message: "Question updated successfully" });
@@ -121,10 +126,11 @@ export const action = async ({ request, params }) => {
         include: { answers: true },
       });
 
-      await triggerWebhook({
+      await triggerWebhook(shop, "deleteQuestion", {
+        action: "delete",
+        entity: "question",
         shop,
-        type: "question.deleted",
-        payload: deletedQuestion,
+        data: deletedQuestion
       });
 
       return redirect("/app/questions-list");
@@ -138,6 +144,7 @@ export const action = async ({ request, params }) => {
     }
     const authorName = formData.get("authorName");
     const authorEmail = formData.get("authorEmail");
+    const notifyUser = formData.get("notifyUser") === "true";
 
     try {
       const newAnswer = await prisma.answer.create({
@@ -145,11 +152,17 @@ export const action = async ({ request, params }) => {
         include: { question: true },
       });
 
-      await triggerWebhook({
+      await triggerWebhook(shop, "newAnswer", {
+        action: "create",
+        entity: "answer",
         shop,
-        type: "answer.created",
-        payload: newAnswer,
+        data: newAnswer
       });
+
+      // Send notification email to customer
+      if (notifyUser) {
+        await sendNewAnswerNotification(shop, newAnswer.question, newAnswer);
+      }
 
       return json({ success: true, message: "Answer added successfully" });
     } catch (error) {
@@ -172,10 +185,11 @@ export const action = async ({ request, params }) => {
         include: { question: true },
       });
 
-      await triggerWebhook({
+      await triggerWebhook(shop, "editAnswer", {
+        action: "update",
+        entity: "answer",
         shop,
-        type: "answer.updated",
-        payload: updatedAnswer,
+        data: updatedAnswer
       });
 
       return json({ success: true, message: "Answer updated successfully" });
@@ -190,10 +204,11 @@ export const action = async ({ request, params }) => {
         include: { question: true },
       });
 
-      await triggerWebhook({
+      await triggerWebhook(shop, "deleteAnswer", {
+        action: "delete",
+        entity: "answer",
         shop,
-        type: "answer.deleted",
-        payload: deletedAnswer,
+        data: deletedAnswer
       });
 
       return json({ success: true, message: "Answer deleted successfully" });
@@ -207,7 +222,7 @@ export const action = async ({ request, params }) => {
 
 // The Question View/Edit Page Component
 export default function ViewQuestionPage() {
-  const { question, productDetails, shop } = useLoaderData();
+  const { question, productDetails, shop, emailSettings } = useLoaderData();
   const actionData = useActionData();
   const submit = useSubmit();
   const navigate = useNavigate();
@@ -225,6 +240,10 @@ export default function ViewQuestionPage() {
   const [answerPublished, setAnswerPublished] = useState(true);
   const [notifyUser, setNotifyUser] = useState(false);
 
+  // Banner state
+  const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+  const [showErrorBanner, setShowErrorBanner] = useState(false);
+
   const openNewAnswerModal = useCallback(() => {
     setEditingAnswer(null);
     setAnswerText("");
@@ -240,6 +259,18 @@ export default function ViewQuestionPage() {
       openNewAnswerModal();
     }
   }, [openNewAnswerModal]);
+
+  // Handle action responses
+  useEffect(() => {
+    if (actionData?.success) {
+      setShowSuccessBanner(true);
+      setShowErrorBanner(false);
+    }
+    if (actionData?.error) {
+      setShowErrorBanner(true);
+      setShowSuccessBanner(false);
+    }
+  }, [actionData]);
 
   const handleQuestionUpdate = () => {
     const formData = new FormData();
@@ -324,9 +355,29 @@ export default function ViewQuestionPage() {
     </IndexTable.Row>
   ));
 
+  // Banner components
+  const successBanner = showSuccessBanner && actionData?.success && (
+    <Banner title="Success" tone="success" onDismiss={() => setShowSuccessBanner(false)}>
+      <p>{actionData.message}</p>
+    </Banner>
+  );
+
+  const errorBanner = showErrorBanner && actionData?.error && (
+    <Banner title="Error" tone="critical" onDismiss={() => setShowErrorBanner(false)}>
+      <p>{actionData.error}</p>
+    </Banner>
+  );
+
   return (
     <Page title={`Edit Question`} backAction={{ content: "Questions", onAction: () => navigate("/app/questions-list") }}>
       <Layout>
+        <Layout.Section>
+          <BlockStack gap="500">
+            {successBanner}
+            {errorBanner}
+          </BlockStack>
+        </Layout.Section>
+
         <Layout.Section>
           <BlockStack gap="500">
             {productDetails && (
@@ -415,7 +466,9 @@ export default function ViewQuestionPage() {
             <TextField label="Author Name" value={answerAuthor} onChange={setAnswerAuthor} autoComplete="off" />
             <TextField label="Author Email" value={answerEmail} onChange={setAnswerEmail} type="email" autoComplete="off" />
             <Select label="Status" options={publishedOptions} onChange={(value) => setAnswerPublished(value === "true")} value={answerPublished ? "true" : "false"} />
-            <Checkbox label="Notify user by email" checked={notifyUser} onChange={setNotifyUser} />
+            {emailSettings.notificationsEnabled && (
+              <Checkbox label="Notify user by email" checked={notifyUser} onChange={setNotifyUser} />
+            )}
           </BlockStack>
         </Modal.Section>
       </Modal>

@@ -1,8 +1,7 @@
 import { json } from "@remix-run/node";
-import { PrismaClient } from "@prisma/client";
+import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
-
-const prisma = new PrismaClient();
+import { sendNewAnswerNotification } from "../lib/email.server.js";
 
 export const action = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
@@ -15,6 +14,7 @@ export const action = async ({ request }) => {
       const authorName = formData.get("authorName");
       const authorEmail = formData.get("authorEmail");
       const answer = formData.get("answer");
+      const notifyCustomer = formData.get("notifyCustomer") === "true";
 
       const newAnswer = await prisma.answer.create({
         data: {
@@ -24,6 +24,14 @@ export const action = async ({ request }) => {
           answer,
         },
       });
+
+      // If notify customer is checked, send the email
+      if (notifyCustomer) {
+        const question = await prisma.question.findUnique({ where: { id: questionId } });
+        if (question) {
+          await sendNewAnswerNotification(session.shop, question, newAnswer);
+        }
+      }
 
       return json({ answer: newAnswer });
     }

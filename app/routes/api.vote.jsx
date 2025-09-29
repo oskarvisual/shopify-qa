@@ -1,8 +1,7 @@
 import { json } from "@remix-run/node";
-import { PrismaClient } from "@prisma/client";
+import prisma from "../db.server";
 import { cors } from "remix-utils/cors";
-
-const prisma = new PrismaClient();
+import { triggerWebhook } from "../lib/webhook.server";
 
 // GET method to check vote status
 export const loader = async ({ request }) => {
@@ -93,6 +92,19 @@ export const action = async ({ request }) => {
           shop,
         },
       });
+    });
+
+    // Trigger webhook after the transaction is successful
+    await triggerWebhook(shop, "newVote", {
+      action: "create",
+      entity: "vote",
+      shop,
+      data: {
+        questionId,
+        customerEmail,
+        votes: newVoteCount,
+        timestamp: new Date()
+      }
     });
 
     const response = json({ success: true, votes: newVoteCount });

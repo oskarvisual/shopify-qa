@@ -89,10 +89,11 @@ export const action = async ({ request }) => {
     });
 
     // Trigger webhook
-    await triggerWebhook({
+    await triggerWebhook(shop, "newQuestion", {
+      action: "create",
+      entity: "question",
       shop,
-      type: "question.created",
-      payload: newQuestion,
+      data: newQuestion
     });
 
     return redirect(`/app/questions/${newQuestion.id}`);

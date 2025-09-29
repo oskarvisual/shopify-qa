@@ -12,9 +12,7 @@ import {
 } from "@shopify/polaris";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { authenticate } from "../shopify.server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "../db.server";
 
 function formatMilliseconds(ms) {
   if (ms < 0) ms = 0;
@@ -82,7 +80,16 @@ export const loader = async ({ request }) => {
   const activeAdmins = await prisma.answer.groupBy({ by: ['authorEmail'], where: { question: { shop: shop }, authorEmail: { not: null } }, _count: { authorEmail: true }, orderBy: { _count: { authorEmail: 'desc' } }, take: 5 });
   const latestUnanswered = await prisma.question.findMany({ where: { shop, answers: { none: {} } }, orderBy: { createdAt: 'desc' }, take: 5, select: { id: true, question: true, createdAt: true } });
 
-  const allQuestionsWithTags = await prisma.question.findMany({ where: { shop, productTags: { not: null, not: '' } }, select: { productTags: true } });
+  const allQuestionsWithTags = await prisma.question.findMany({
+    where: {
+      shop,
+      AND: [
+        { productTags: { not: null } },
+        { productTags: { not: '' } }
+      ]
+    },
+    select: { productTags: true }
+  });
   const tagCounts = {};
   allQuestionsWithTags.forEach(q => {
     const tags = q.productTags.split(',').map(t => t.trim());
