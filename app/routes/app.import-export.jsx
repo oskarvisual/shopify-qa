@@ -21,11 +21,12 @@ import {
   Select,
   Banner,
   InlineStack,
+  Icon,
+  Tooltip,
 } from "@shopify/polaris";
+import { QuestionCircleIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "../db.server";
 
 const GET_PRODUCT_DETAILS_QUERY = `
   query getProductDetails($id: ID!) {
@@ -40,14 +41,29 @@ export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
   const { shop } = session;
 
-  const totalQuestions = await prisma.question.count({ where: { shop } });
-  const totalAnswers = await prisma.answer.count({
-    where: { question: { shop } },
-  });
+  const [totalQuestions, totalAnswers, helpConfigs] = await Promise.all([
+    prisma.question.count({ where: { shop } }),
+    prisma.answer.count({
+      where: { question: { shop } },
+    }),
+    prisma.config.findMany({
+      where: {
+        key: {
+          in: ['help.import_export', 'help.import_instructions', 'help.export_instructions']
+        }
+      }
+    }),
+  ]);
+
+  const helpLinks = helpConfigs.reduce((acc, config) => {
+    acc[config.key] = config.value;
+    return acc;
+  }, {});
 
   return json({
     totalQuestions,
     totalAnswers,
+    helpLinks,
   });
 };
 
@@ -387,7 +403,7 @@ export const action = async ({ request }) => {
 };
 
 export default function ImportExportPage() {
-  const { totalQuestions, totalAnswers } = useLoaderData();
+  const { totalQuestions, totalAnswers, helpLinks } = useLoaderData();
   const actionData = useActionData();
   const submit = useSubmit();
   const navigate = useNavigate();
@@ -480,7 +496,18 @@ export default function ImportExportPage() {
           <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 6, xl: 6 }}>
             <Card>
               <BlockStack gap="500">
-                <Text as="h2" variant="headingMd">Import Data</Text>
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text as="h2" variant="headingMd">Import Data</Text>
+                  <Tooltip content="Help">
+                    <Button
+                      variant="plain"
+                      onClick={helpLinks['help.import_instructions'] ? () => window.open(helpLinks['help.import_instructions'], '_blank') : undefined}
+                      disabled={!helpLinks['help.import_instructions']}
+                    >
+                      <Icon source={QuestionCircleIcon} />
+                    </Button>
+                  </Tooltip>
+                </InlineStack>
                 <Select
                   label="Import Type"
                   options={[
@@ -503,7 +530,18 @@ export default function ImportExportPage() {
           <Grid.Cell columnSpan={{ xs: 6, sm: 3, md: 3, lg: 6, xl: 6 }}>
             <Card>
               <BlockStack gap="500">
-                <Text as="h2" variant="headingMd">Export Data</Text>
+                <InlineStack align="space-between" blockAlign="center">
+                  <Text as="h2" variant="headingMd">Export Data</Text>
+                  <Tooltip content="Help">
+                    <Button
+                      variant="plain"
+                      onClick={helpLinks['help.export_instructions'] ? () => window.open(helpLinks['help.export_instructions'], '_blank') : undefined}
+                      disabled={!helpLinks['help.export_instructions']}
+                    >
+                      <Icon source={QuestionCircleIcon} />
+                    </Button>
+                  </Tooltip>
+                </InlineStack>
                 <BlockStack gap="200">
                   <Text as="p">Total Questions: {totalQuestions}</Text>
                   <Text as="p">Total Answers: {totalAnswers}</Text>
@@ -518,7 +556,18 @@ export default function ImportExportPage() {
         </Grid>
         <Card>
           <BlockStack gap="400">
-            <Text as="h3" variant="headingMd">CSV Format Instructions</Text>
+            <InlineStack align="space-between" blockAlign="center">
+              <Text as="h3" variant="headingMd">CSV Format Instructions</Text>
+              <Tooltip content="Help">
+                <Button
+                  variant="plain"
+                  onClick={helpLinks['help.import_export'] ? () => window.open(helpLinks['help.import_export'], '_blank') : undefined}
+                  disabled={!helpLinks['help.import_export']}
+                >
+                  <Icon source={QuestionCircleIcon} />
+                </Button>
+              </Tooltip>
+            </InlineStack>
             <Text as="p">Import your data in a two-step process: first upload your questions, then your answers.</Text>
             <Text as="h4" variant="headingSm">Step 1: For Questions (questions.csv)</Text>
             <pre><code>
