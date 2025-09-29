@@ -18,6 +18,7 @@ export const action = async ({ request }) => {
 
       const newAnswer = await prisma.answer.create({
         data: {
+          shop: session.shop,
           questionId,
           authorName,
           authorEmail,
@@ -41,7 +42,7 @@ export const action = async ({ request }) => {
       const isPublished = formData.get("isPublished") === "true";
 
       const updatedAnswer = await prisma.answer.update({
-        where: { id },
+        where: { id, shop: session.shop },
         data: { isPublished },
       });
 
@@ -52,7 +53,7 @@ export const action = async ({ request }) => {
       const id = formData.get("id");
 
       await prisma.answer.delete({
-        where: { id },
+        where: { id, shop: session.shop },
       });
 
       return json({ success: true });

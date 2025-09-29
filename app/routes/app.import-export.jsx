@@ -353,6 +353,7 @@ export const action = async ({ request }) => {
 
         await prisma.answer.create({
           data: {
+            shop: shop,
             questionId: questionId,
             authorName: String(row.authorName || "").trim(),
             authorEmail: String(row.authorEmail || "").trim(),

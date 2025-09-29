@@ -147,8 +147,9 @@ export const action = async ({ request, params }) => {
     const notifyUser = formData.get("notifyUser") === "true";
 
     try {
+      console.log('Creating answer with data:', { shop, questionId, answerText, authorName, authorEmail });
       const newAnswer = await prisma.answer.create({
-        data: { questionId, answer: answerText, authorName, authorEmail, isPublished: true },
+        data: { shop, questionId, answer: answerText, authorName, authorEmail, isPublished: true },
         include: { question: true },
       });
 
@@ -166,7 +167,8 @@ export const action = async ({ request, params }) => {
 
       return json({ success: true, message: "Answer added successfully" });
     } catch (error) {
-      return json({ error: "Failed to add answer" }, { status: 500 });
+      console.error("Error adding answer:", error);
+      return json({ error: "Failed to add answer: " + error.message }, { status: 500 });
     }
   } else if (actionType === "updateAnswer") {
     const answerText = formData.get("answerText");
@@ -180,7 +182,7 @@ export const action = async ({ request, params }) => {
 
     try {
       const updatedAnswer = await prisma.answer.update({
-        where: { id: answerId },
+        where: { id: answerId, shop },
         data: { answer: answerText, authorName, authorEmail, isPublished },
         include: { question: true },
       });
@@ -199,8 +201,8 @@ export const action = async ({ request, params }) => {
   } else if (actionType === "deleteAnswer") {
     const answerId = formData.get("answerId");
     try {
-      const deletedAnswer = await prisma.answer.delete({ 
-        where: { id: answerId },
+      const deletedAnswer = await prisma.answer.delete({
+        where: { id: answerId, shop },
         include: { question: true },
       });
 

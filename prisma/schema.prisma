@@ -56,6 +56,7 @@ model Question {
 
 model Answer {
   id          String   @id @default(cuid())
+  shop        String
   questionId  String
   authorName  String
   authorEmail String?
@@ -66,6 +67,7 @@ model Answer {
 
   question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
+  @@index([shop, questionId])
   @@index([questionId])
 }
 
