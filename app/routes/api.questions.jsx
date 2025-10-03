@@ -6,8 +6,12 @@ import { sendNewQuestionNotification } from "../lib/email.server.js";
 const GET_PRODUCT_DETAILS_QUERY = `
   query getProductDetails($id: ID!) {
     product(id: $id) {
+      handle
       productType
       tags
+    }
+    shop {
+      name
     }
   }
 `;
@@ -55,6 +59,7 @@ export const action = async ({ request }) => {
       let productType = null;
       let productCategory = null;
       let productTags = null;
+      let storeName = null;
 
       // Fetch product details from Shopify
       try {
@@ -64,6 +69,7 @@ export const action = async ({ request }) => {
 
         const productDetails = await response.json();
         const product = productDetails.data?.product;
+        storeName = productDetails.data?.shop?.name || null;
 
         if (product) {
           productType = product.productType;
@@ -91,7 +97,10 @@ export const action = async ({ request }) => {
       });
 
       // Send notification email to admins
-      await sendNewQuestionNotification(session.shop, newQuestion);
+      await sendNewQuestionNotification(session.shop, newQuestion, {
+        questionPath: `/app/questions/${newQuestion.id}`,
+        storeName,
+      });
 
       return json({ question: newQuestion });
     }

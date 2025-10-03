@@ -77,6 +77,7 @@ export const action = async ({ request }) => {
     const emailData = {
       notificationsEnabled: formData.get("notificationsEnabled") === "true",
       notifyOnNewQuestion: formData.get("notifyOnNewQuestion") === "true",
+      autoApproveQuestions: formData.get("autoApproveQuestions") === "true",
       notificationEmails: formData.get("notificationEmails") || null,
       smtpProvider: formData.get("smtpProvider") || "APP",
       smtpHost: formData.get("smtpHost") || null,
@@ -112,7 +113,7 @@ export default function SettingsPage() {
   const fetcher = useFetcher();
 
   // Combined state for both forms
-  const [formState, setFormState] = useState({ ...webhookSettings, ...emailSettings });
+  const [formState, setFormState] = useState({ ...webhookSettings, ...emailSettings, autoApproveQuestions: emailSettings?.autoApproveQuestions || false });
 
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [showErrorBanner, setShowErrorBanner] = useState(false);
@@ -184,6 +185,21 @@ export default function SettingsPage() {
               {errorBanner}
               {testBanner}
             </BlockStack>
+          </Layout.Section>
+
+          <Layout.Section>
+            <Card>
+              <BlockStack gap="500">
+                <Text variant="headingMd">Questions</Text>
+                <input type="hidden" name="autoApproveQuestions" value={formState.autoApproveQuestions ? "true" : "false"} />
+                <Checkbox
+                  label="Auto-approve new questions"
+                  checked={formState.autoApproveQuestions}
+                  onChange={handleFormChange("autoApproveQuestions")}
+                  helpText="If checked, new questions will be published automatically."
+                />
+              </BlockStack>
+            </Card>
           </Layout.Section>
 
           <Layout.Section>

@@ -3,6 +3,17 @@ import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
 import { sendNewAnswerNotification } from "../lib/email.server.js";
 
+const GET_PRODUCT_HANDLE_AND_SHOP_QUERY = `
+  query getProductHandleAndShop($productId: ID!) {
+    product(id: $productId) {
+      handle
+    }
+    shop {
+      name
+    }
+  }
+`;
+
 export const action = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const formData = await request.formData();
@@ -30,7 +41,25 @@ export const action = async ({ request }) => {
       if (notifyCustomer) {
         const question = await prisma.question.findUnique({ where: { id: questionId } });
         if (question) {
-          await sendNewAnswerNotification(session.shop, question, newAnswer);
+          let productHandle;
+          let storeName;
+          if (question.productId) {
+            try {
+              const productResponse = await admin.graphql(GET_PRODUCT_HANDLE_AND_SHOP_QUERY, {
+                variables: { productId: `gid://shopify/Product/${question.productId}` },
+              });
+              const productData = await productResponse.json();
+              productHandle = productData.data?.product?.handle;
+              storeName = productData.data?.shop?.name;
+            } catch (productError) {
+              console.error("Failed to fetch product details for answer notification:", productError);
+            }
+          }
+
+          await sendNewAnswerNotification(session.shop, question, newAnswer, {
+            productHandle,
+            storeName,
+          });
         }
       }
 

@@ -22,8 +22,18 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { triggerWebhook } from "../lib/webhook.server.js";
-import { sendNewAnswerNotification } from "../lib/email.server.js";
+import { sendNewAnswerNotification, sendQuestionPublishedNotification } from "../lib/email.server.js";
 const CHARACTER_LIMIT = 500;
+const GET_PRODUCT_HANDLE_AND_SHOP_QUERY = `
+  query getProductHandleAndShop($productId: ID!) {
+    product(id: $productId) {
+      handle
+    }
+    shop {
+      name
+    }
+  }
+`;
 
 // Loader to fetch a specific question and its answers
 export const loader = async ({ request, params }) => {
@@ -81,7 +91,7 @@ export const loader = async ({ request, params }) => {
 
 // Action to handle updating the question or managing answers
 export const action = async ({ request, params }) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const { shop } = session;
   const { questionId } = params;
 
@@ -102,11 +112,37 @@ export const action = async ({ request, params }) => {
     const isPublished = formData.get("isPublished") === "true";
 
     try {
+      const existingQuestion = await prisma.question.findUnique({
+        where: { id: questionId, shop: shop },
+      });
+
       const updatedQuestion = await prisma.question.update({
         where: { id: questionId, shop: shop },
         data: { question: questionText, customerName, customerEmail, isPublished },
         include: { answers: true },
       });
+
+      let productHandle;
+      let storeName;
+      if (isPublished && !existingQuestion.isPublished && updatedQuestion.productId) {
+        try {
+          const productResponse = await admin.graphql(GET_PRODUCT_HANDLE_AND_SHOP_QUERY, {
+            variables: { productId: `gid://shopify/Product/${updatedQuestion.productId}` },
+          });
+          const productData = await productResponse.json();
+          productHandle = productData.data?.product?.handle;
+          storeName = productData.data?.shop?.name;
+        } catch (productError) {
+          console.error("Failed to fetch product details for published notification:", productError);
+        }
+      }
+
+      if (isPublished && !existingQuestion.isPublished) {
+        await sendQuestionPublishedNotification(shop, updatedQuestion, {
+          productHandle,
+          storeName,
+        });
+      }
 
       await triggerWebhook(shop, "editQuestion", {
         action: "update",
@@ -162,7 +198,25 @@ export const action = async ({ request, params }) => {
 
       // Send notification email to customer
       if (notifyUser) {
-        await sendNewAnswerNotification(shop, newAnswer.question, newAnswer);
+        let productHandle;
+        let storeName;
+        if (newAnswer.question.productId) {
+          try {
+            const productResponse = await admin.graphql(GET_PRODUCT_HANDLE_AND_SHOP_QUERY, {
+              variables: { productId: `gid://shopify/Product/${newAnswer.question.productId}` },
+            });
+            const productData = await productResponse.json();
+            productHandle = productData.data?.product?.handle;
+            storeName = productData.data?.shop?.name;
+          } catch (productError) {
+            console.error("Failed to fetch product details for answer notification:", productError);
+          }
+        }
+
+        await sendNewAnswerNotification(shop, newAnswer.question, newAnswer, {
+          productHandle,
+          storeName,
+        });
       }
 
       return json({ success: true, message: "Answer added successfully" });

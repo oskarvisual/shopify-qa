@@ -1,10 +1,9 @@
 import { json } from "@remix-run/node";
-import { PrismaClient } from "@prisma/client";
 import { cors } from "remix-utils/cors";
 import { triggerWebhook } from "../lib/webhook.server.js";
 import { shopify } from "../shopify.server";
-
-const prisma = new PrismaClient();
+import { sendNewQuestionNotification } from "../lib/email.server.js";
+import prisma from "../db.server";
 
 const GET_PRODUCT_DETAILS_QUERY = `
   query getProductDetails($id: ID!) {
@@ -145,6 +144,8 @@ export const action = async ({ request }) => {
       console.warn("Failed to get session for product lookup:", sessionError.message);
     }
 
+    const emailSettings = await prisma.emailSetting.findUnique({ where: { shop } });
+
     const newQuestion = await prisma.question.create({
       data: {
         shop,
@@ -152,6 +153,7 @@ export const action = async ({ request }) => {
         customerName,
         customerEmail,
         question,
+        isPublished: emailSettings?.autoApproveQuestions || false,
         productType,
         productCategory,
         productTags,
@@ -165,6 +167,11 @@ export const action = async ({ request }) => {
       entity: "question",
       shop,
       data: newQuestion
+    });
+
+    // Send notification email to admins
+    await sendNewQuestionNotification(shop, newQuestion, {
+      questionPath: `/app/questions/${newQuestion.id}`,
     });
 
     const response = json({ question: newQuestion });

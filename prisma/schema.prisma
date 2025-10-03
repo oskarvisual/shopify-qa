@@ -105,6 +105,7 @@ model EmailSetting {
   shop                 String    @unique
   notificationsEnabled Boolean   @default(false)
   notifyOnNewQuestion  Boolean   @default(false)
+  autoApproveQuestions Boolean @default(false)
   notificationEmails   String?   @db.Text
   smtpProvider         String    @default("APP") // "APP" or "CUSTOM"
   smtpHost             String?
@@ -125,4 +126,21 @@ model Config {
   updatedAt DateTime @updatedAt
 
   @@index([key])
+}
+
+model EmailLog {
+  id        String   @id @default(cuid())
+  shop      String
+  to        String
+  subject   String   @db.Text
+  body      String   @db.LongText
+  smtpHost  String?
+  smtpPort  Int?
+  smtpUser  String?
+  status    String   // e.g., "SENT", "FAILED"
+  response  String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shop])
 }

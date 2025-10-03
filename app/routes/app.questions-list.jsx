@@ -17,14 +17,24 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { triggerWebhook } from "../lib/webhook.server.js";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { sendQuestionPublishedNotification } from "../lib/email.server.js";
+import prisma from "../db.server";
 const PAGE_SIZE = 10;
+
+const GET_PRODUCT_HANDLE_AND_SHOP_QUERY = `
+  query getProductHandleAndShop($productId: ID!) {
+    product(id: $productId) {
+      handle
+    }
+    shop {
+      name
+    }
+  }
+`;
 
 // Action to handle mutations like approving a question
 export const action = async ({ request }) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const { shop } = session;
   const formData = await request.formData();
 
@@ -33,11 +43,42 @@ export const action = async ({ request }) => {
 
   if (actionType === "approve" && questionId) {
     try {
+      const existingQuestion = await prisma.question.findUnique({
+        where: { id: questionId },
+      });
+
+      if (!existingQuestion || existingQuestion.shop !== shop) {
+        return json({ success: false, error: "Question not found." }, { status: 404 });
+      }
+
       const question = await prisma.question.update({
         where: { id: questionId, shop },
         data: { isPublished: true },
         include: { answers: true },
       });
+
+      if (!existingQuestion.isPublished && question.isPublished) {
+        let productHandle;
+        let storeName;
+
+        if (question.productId) {
+          try {
+            const productResponse = await admin.graphql(GET_PRODUCT_HANDLE_AND_SHOP_QUERY, {
+              variables: { productId: `gid://shopify/Product/${question.productId}` },
+            });
+            const productData = await productResponse.json();
+            productHandle = productData.data?.product?.handle;
+            storeName = productData.data?.shop?.name;
+          } catch (productError) {
+            console.error("Failed to fetch product details for approval email:", productError);
+          }
+        }
+
+        await sendQuestionPublishedNotification(shop, question, {
+          productHandle,
+          storeName,
+        });
+      }
 
       // Trigger webhook
       await triggerWebhook(shop, "approveQuestion", {
@@ -49,6 +90,7 @@ export const action = async ({ request }) => {
 
       return json({ success: true });
     } catch (error) {
+      console.error("Failed to approve question from list:", error);
       return json({ success: false, error: "Failed to approve question." }, { status: 500 });
     }
   }

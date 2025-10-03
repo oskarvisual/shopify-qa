@@ -16,16 +16,19 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { triggerWebhook } from "../lib/webhook.server.js";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { sendNewQuestionNotification } from "../lib/email.server.js";
+import prisma from "../db.server";
 const CHARACTER_LIMIT = 500;
 
 const GET_PRODUCT_DETAILS_QUERY = `
   query getProductDetails($id: ID!) {
     product(id: $id) {
+      handle
       productType
       tags
+    }
+    shop {
+      name
     }
   }
 `;
@@ -40,7 +43,12 @@ export const action = async ({ request }) => {
   const productId = formData.get("productId");
   const customerName = formData.get("customerName");
   const customerEmail = formData.get("customerEmail");
-  const isPublished = formData.get("isPublished") === "true";
+  let isPublished = formData.get("isPublished") === "true";
+
+  const emailSettings = await prisma.emailSetting.findUnique({ where: { shop } });
+  if (emailSettings?.autoApproveQuestions) {
+    isPublished = true;
+  }
 
   if (!questionText || !productId || productId === "") {
     return json({ error: "Question text and product are required" }, { status: 400 });
@@ -54,6 +62,7 @@ export const action = async ({ request }) => {
     let productType = null;
     let productCategory = null;
     let productTags = null;
+    let storeName = null;
 
     // Fetch product details from Shopify
     try {
@@ -63,6 +72,7 @@ export const action = async ({ request }) => {
 
       const productDetails = await response.json();
       const product = productDetails.data?.product;
+      storeName = productDetails.data?.shop?.name || null;
 
       if (product) {
         productType = product.productType;
@@ -94,6 +104,12 @@ export const action = async ({ request }) => {
       entity: "question",
       shop,
       data: newQuestion
+    });
+
+    // Send notification email to admins
+    await sendNewQuestionNotification(shop, newQuestion, {
+      questionPath: `/app/questions/${newQuestion.id}`,
+      storeName,
     });
 
     return redirect(`/app/questions/${newQuestion.id}`);
