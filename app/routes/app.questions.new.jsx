@@ -16,7 +16,7 @@ import {
 } from "@shopify/polaris";
 import { authenticate } from "../shopify.server";
 import { triggerWebhook } from "../lib/webhook.server.js";
-import { sendNewQuestionNotification } from "../lib/email.server.js";
+import { sendNewQuestionNotification, sendQuestionPublishedNotification } from "../lib/email.server.js";
 import prisma from "../db.server";
 const CHARACTER_LIMIT = 500;
 
@@ -24,6 +24,7 @@ const GET_PRODUCT_DETAILS_QUERY = `
   query getProductDetails($id: ID!) {
     product(id: $id) {
       handle
+      title
       productType
       tags
     }
@@ -63,6 +64,8 @@ export const action = async ({ request }) => {
     let productCategory = null;
     let productTags = null;
     let storeName = null;
+    let productHandle = null;
+    let productName = null;
 
     // Fetch product details from Shopify
     try {
@@ -78,6 +81,8 @@ export const action = async ({ request }) => {
         productType = product.productType;
         productTags = product.tags?.join(', ');
         productCategory = productType ? productType.charAt(0).toUpperCase() + productType.slice(1) : null;
+        productHandle = product.handle || null;
+        productName = product.title || null;
       }
     } catch (productError) {
       console.warn("Failed to fetch product details from Shopify:", productError.message);
@@ -111,6 +116,15 @@ export const action = async ({ request }) => {
       questionPath: `/app/questions/${newQuestion.id}`,
       storeName,
     });
+
+    // Notify the customer if the question was published immediately (auto-approve or manual choice)
+    if (newQuestion.isPublished) {
+      await sendQuestionPublishedNotification(shop, newQuestion, {
+        productHandle,
+        storeName,
+        productName,
+      });
+    }
 
     return redirect(`/app/questions/${newQuestion.id}`);
   } catch (error) {

@@ -114,6 +114,15 @@ model EmailSetting {
   // TODO: This should be encrypted at rest
   smtpPass             String?
   smtpSecure           Boolean   @default(true)
+
+  // Email templates
+  answerEmailSubject          String? @db.Text
+  answerEmailBody             String? @db.Text
+  questionPublishedSubject    String? @db.Text
+  questionPublishedEmailBody  String? @db.Text
+  newQuestionAdminSubject     String? @db.Text
+  newQuestionAdminEmailBody   String? @db.Text
+
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 }

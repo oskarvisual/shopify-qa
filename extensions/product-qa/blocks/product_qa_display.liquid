@@ -4,7 +4,7 @@
   Updated: Cache refresh
 {% endcomment %}
 
-<div class="product-qa-display" data-product-id="{{ product.id }}">
+<div class="product-qa-display qa-translations-hidden" data-product-id="{{ product.id }}">
 
   <div class="qa-header">
     <h3>{{ block.settings.title }}</h3>
@@ -29,9 +29,8 @@
     <div class="loading">Loading questions...</div>
   </div>
 
-  <!-- Load More Button -->
-  <div id="load-more-container" class="load-more-container" style="display: none;">
-    <button id="load-more-btn" class="btn btn-load-more">{{ block.settings.load_more_text | default: 'Load More' }}</button>
+  <!-- Infinite Scroll Sentinel -->
+  <div id="load-more-sentinel" class="load-more-sentinel" style="display: none;">
     <div id="loading-more" class="loading-more" style="display: none;">Loading...</div>
   </div>
 
@@ -48,6 +47,11 @@
     {% else %}
       max-width: {{ block.settings.display_max_width | default: 800 }}px;
     {% endif %}
+  }
+
+  .qa-translations-hidden {
+    opacity: 0;
+    pointer-events: none;
   }
 
   .qa-header {
@@ -80,6 +84,26 @@
     border-radius: 5px;
     border: 1px solid {{ block.settings.search_border_color | default: '#ccc' }};
     background: {{ block.settings.search_bg_color | default: '#fff' }};
+    color: {{ block.settings.text_color | default: '#333' }};
+  }
+
+  .load-more-sentinel {
+    width: 100%;
+    height: 60px;
+    position: relative;
+  }
+
+  .loading-more {
+    text-align: center;
+    padding: 10px;
+    font-size: 14px;
+    color: {{ block.settings.text_color | default: '#333' }};
+  }
+
+  .qa-list .loading {
+    text-align: center;
+    padding: 20px 0;
+    font-size: 14px;
     color: {{ block.settings.text_color | default: '#333' }};
   }
 
@@ -251,18 +275,19 @@
 </style>
 
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('DOMContentLoaded', async function() {
     const productId = document.querySelector('[data-product-id]')?.dataset.productId;
     const qaList = document.getElementById('qa-list');
     const searchInput = document.getElementById('qa-search');
-    const loadMoreBtn = document.getElementById('load-more-btn');
-    const loadMoreContainer = document.getElementById('load-more-container');
+    const loadMoreSentinel = document.getElementById('load-more-sentinel');
     const loadingMore = document.getElementById('loading-more');
-    const openAskModal = document.getElementById('open-ask-modal-btn');
-    const askModal = document.getElementById('qa-ask-modal');
+    const shopDomain = '{{ shop.domain }}';
+    const container = document.querySelector('.product-qa-display');
+    let searchPlaceholder = (searchInput?.getAttribute('placeholder') || 'Search questions...');
 
     if (!productId || !qaList) {
       console.error('Required elements not found for Q&A display');
+      if (container) container.classList.remove('qa-translations-hidden');
       return;
     }
 
@@ -271,7 +296,7 @@
     const showAnswerMeta = {{ block.settings.show_answer_meta | json }};
     const showVotes = {{ block.settings.show_votes | json }};
 
-    const textSettings = {
+    let textSettings = {
       questionLabel: "{{ block.settings.question_label | default: 'Question:' }}",
       answerLabel: "{{ block.settings.answer_label | default: 'Answers:' }}",
       askedBy: "{{ block.settings.asked_by_text | default: 'Asked by' }}",
@@ -280,12 +305,151 @@
       noQuestions: "{{ block.settings.no_questions_text | default: 'No questions yet. Be the first to ask!' }}"
     };
 
+    const voteButtonIcon = `
+            <svg class="vote-icon" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6zM9 4.5a1.5 1.5 0 113 0v1a1.5 1.5 0 01-3 0v-1z"></path>
+            </svg>`;
+
+    function voteButtonContent(label, votes) {
+      const votesText = typeof votes === 'number' ? ` (${votes || 0})` : '';
+      return `${voteButtonIcon}
+            <span>${label}${votesText}</span>`;
+    }
+
+    const defaultDisplayTexts = {
+      loading: 'Loading questions...',
+      loadingMore: 'Loading...',
+      error: 'Failed to load questions. Please try again later.',
+      helpful: '{{ block.settings.vote_button_text | default: "Helpful" }}',
+      voting: 'Voting...',
+      voted: 'Voted!'
+    };
+
+    let displayTexts = { ...defaultDisplayTexts };
+
     let currentPage = 1;
     let isLoading = false;
     let hasMore = true;
     let allQuestions = [];
     let filteredQuestions = [];
+    let currentSearchTerm = '';
     let customerEmail = '{{ customer.email | default: "" }}'; // Get customer email
+    let dateFormatter = null;
+
+    function updateLoadingTexts() {
+      const loadingEl = qaList.querySelector('.loading');
+      if (loadingEl) {
+        loadingEl.textContent = displayTexts.loading;
+      }
+      if (loadingMore) {
+        loadingMore.textContent = displayTexts.loadingMore;
+      }
+    }
+
+    function updateVoteButtonLabels() {
+      document.querySelectorAll('.btn-vote').forEach((button) => {
+        const votes = Number(button.dataset.votes || 0);
+        if (button.classList.contains('voting')) {
+          button.innerHTML = `<span>${displayTexts.voting}</span>`;
+        } else if (button.classList.contains('voted')) {
+          button.innerHTML = voteButtonContent(displayTexts.voted, votes);
+        } else {
+          button.innerHTML = voteButtonContent(displayTexts.helpful, votes);
+        }
+      });
+    }
+
+    function updateSearchPlaceholder() {
+      if (searchInput && searchPlaceholder) {
+        searchInput.setAttribute('placeholder', searchPlaceholder);
+      }
+    }
+
+    function updateDateFormatter(locale, style) {
+      if (!locale && !style) {
+        dateFormatter = null;
+        return;
+      }
+
+      let cleanedStyle = style ? String(style).toLowerCase().trim() : '';
+      const options = {};
+      if (cleanedStyle && ['short', 'medium', 'long', 'full'].includes(cleanedStyle)) {
+        options.dateStyle = cleanedStyle;
+      } else {
+        cleanedStyle = '';
+      }
+
+      try {
+        dateFormatter = new Intl.DateTimeFormat(locale || undefined, Object.keys(options).length ? options : undefined);
+      } catch (error) {
+        console.warn('Failed to apply date formatter for Product Q&A display:', error);
+        dateFormatter = null;
+      }
+    }
+
+    function formatDate(value) {
+      try {
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+          return value;
+        }
+        if (dateFormatter) {
+          return dateFormatter.format(date);
+        }
+        return date.toLocaleDateString();
+      } catch (error) {
+        console.warn('Failed to format date for Product Q&A display:', error);
+        return value;
+      }
+    }
+
+    function applyDisplayTranslations(translations) {
+      const overrides = {};
+      if (translations.displayLoadingText) overrides.loading = translations.displayLoadingText;
+      if (translations.displayLoadingMoreText) overrides.loadingMore = translations.displayLoadingMoreText;
+      if (translations.displayErrorText) overrides.error = translations.displayErrorText;
+      if (translations.displayHelpfulText) overrides.helpful = translations.displayHelpfulText;
+      if (translations.displayVotingText) overrides.voting = translations.displayVotingText;
+      if (translations.displayVotedText) overrides.voted = translations.displayVotedText;
+
+      displayTexts = { ...displayTexts, ...overrides };
+
+      if (translations.displaySearchPlaceholder) {
+        searchPlaceholder = translations.displaySearchPlaceholder;
+      }
+
+      if (translations.displayAskedByText) textSettings = { ...textSettings, askedBy: translations.displayAskedByText };
+      if (translations.displayAnsweredByText) textSettings = { ...textSettings, answeredBy: translations.displayAnsweredByText };
+      if (translations.displayOnText) textSettings = { ...textSettings, onDate: translations.displayOnText };
+
+      if (translations.displayDateLocale || translations.displayDateStyle) {
+        updateDateFormatter(translations.displayDateLocale, translations.displayDateStyle);
+      }
+
+      updateLoadingTexts();
+      updateVoteButtonLabels();
+      updateSearchPlaceholder();
+    }
+
+    async function loadTranslations() {
+      if (!shopDomain) return;
+      try {
+        const translationUrl = `/apps/a/api/public/translations?shop=${encodeURIComponent(shopDomain)}`;
+        const response = await fetch(translationUrl);
+        if (!response.ok) return;
+        const data = await response.json();
+        if (data?.translations) {
+          applyDisplayTranslations(data.translations);
+        }
+      } catch (error) {
+        console.warn('Failed to load translations for Product Q&A display:', error);
+      }
+    }
+
+    await loadTranslations();
+    updateLoadingTexts();
+    updateSearchPlaceholder();
+    if (container) container.classList.remove('qa-translations-hidden');
 
     // Set global modal settings for shared modal
     window.qaModalSettings = {
@@ -306,9 +470,29 @@
       searchInput.addEventListener('input', debounce(handleSearch, 300));
     }
 
-    // Load more functionality
-    if (loadMoreBtn) {
-      loadMoreBtn.addEventListener('click', loadMoreQuestions);
+    // Infinite scroll functionality
+    if (loadMoreSentinel) {
+      const handleIntersection = (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && hasMore && !isLoading) {
+            loadMoreQuestions();
+          }
+        });
+      };
+
+      if ('IntersectionObserver' in window) {
+        const observer = new IntersectionObserver(handleIntersection, {
+          rootMargin: '200px 0px',
+        });
+        observer.observe(loadMoreSentinel);
+      } else {
+        loadMoreSentinel.addEventListener('click', () => {
+          if (hasMore && !isLoading) {
+            loadMoreQuestions();
+          }
+        });
+        loadMoreSentinel.style.cursor = 'pointer';
+      }
     }
 
     // Global function to reload questions (called from form section after submission)
@@ -348,12 +532,8 @@
           const currentVotes = button.dataset.votes || 0;
           button.classList.add('voted');
           button.disabled = true;
-          button.innerHTML = `
-            <svg class="vote-icon" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6zM9 4.5a1.5 1.5 0 113 0v1a1.5 1.5 0 01-3 0v-1z"></path>
-            </svg>
-            <span>Voted! (${currentVotes})</span>
-          `;
+          button.dataset.votes = currentVotes;
+          button.innerHTML = voteButtonContent(displayTexts.voted, currentVotes);
         }
       }
     }
@@ -361,24 +541,33 @@
     function loadQuestions(page = 1) {
       if (isLoading) return;
 
+      const isFirstPage = page === 1;
       isLoading = true;
-      showLoading();
+      showLoading(isFirstPage);
 
       fetch(`/apps/a/api/public/questions?productId=${productId}&page=${page}&limit=10&shop={{ shop.domain }}`)
         .then(response => response.json())
         .then(data => {
           if (data.questions && Array.isArray(data.questions)) {
-            if (page === 1) {
-              allQuestions = data.questions;
-              filteredQuestions = [...allQuestions];
+            const fetchedQuestions = data.questions;
+
+            if (isFirstPage) {
+              allQuestions = fetchedQuestions;
             } else {
-              allQuestions = [...allQuestions, ...data.questions];
-              filteredQuestions = [...allQuestions];
+              allQuestions = [...allQuestions, ...fetchedQuestions];
             }
 
-            hasMore = data.questions.length === 10;
-            renderQuestions(page === 1);
-            updateLoadMoreButton();
+            hasMore = fetchedQuestions.length === 10;
+            currentPage = page;
+            applySearchFilter();
+
+            if (isFirstPage || currentSearchTerm) {
+              renderQuestions(filteredQuestions, true);
+            } else if (fetchedQuestions.length > 0) {
+              renderQuestions(fetchedQuestions, false);
+            }
+
+            updateSentinelDisplay();
 
             // Check vote status for all visible questions
             checkAllVoteStatuses();
@@ -386,6 +575,8 @@
             if (page === 1) {
               showNoQuestions();
             }
+            hasMore = false;
+            updateSentinelDisplay();
           }
         })
         .catch(error => {
@@ -393,6 +584,8 @@
           if (page === 1) {
             showError();
           }
+          hasMore = false;
+          updateSentinelDisplay();
         })
         .finally(() => {
           isLoading = false;
@@ -403,43 +596,50 @@
     function loadMoreQuestions() {
       if (!hasMore || isLoading) return;
 
-      currentPage++;
-      loadQuestions(currentPage);
+      const nextPage = currentPage + 1;
+      loadQuestions(nextPage);
     }
 
     function handleSearch(e) {
-      const searchTerm = e.target.value.toLowerCase().trim();
-
-      if (searchTerm === '') {
-        filteredQuestions = [...allQuestions];
-      } else {
-        filteredQuestions = allQuestions.filter(question =>
-          question.question.toLowerCase().includes(searchTerm) ||
-          question.customerName?.toLowerCase().includes(searchTerm) ||
-          question.answers.some(answer =>
-            answer.answer.toLowerCase().includes(searchTerm) ||
-            answer.authorName?.toLowerCase().includes(searchTerm)
-          )
-        );
-      }
-
-      renderQuestions(true);
-      updateLoadMoreButton();
+      currentSearchTerm = e.target.value.toLowerCase().trim();
+      applySearchFilter();
+      renderQuestions(filteredQuestions, true);
+      updateSentinelDisplay();
     }
 
-    function renderQuestions(replace = false) {
-      if (filteredQuestions.length === 0) {
-        showNoQuestions();
+    function applySearchFilter() {
+      if (!currentSearchTerm) {
+        filteredQuestions = [...allQuestions];
         return;
       }
 
-      const questionsHtml = filteredQuestions.map(formatQuestion).join('');
+      filteredQuestions = allQuestions.filter(question =>
+        question.question.toLowerCase().includes(currentSearchTerm) ||
+        question.customerName?.toLowerCase().includes(currentSearchTerm) ||
+        question.answers.some(answer =>
+          answer.answer.toLowerCase().includes(currentSearchTerm) ||
+          answer.authorName?.toLowerCase().includes(currentSearchTerm)
+        )
+      );
+    }
+
+    function renderQuestions(questions, replace = false) {
+      if (!questions || questions.length === 0) {
+        if (replace) {
+          showNoQuestions();
+        }
+        return;
+      }
+
+      const questionsHtml = questions.map(formatQuestion).join('');
 
       if (replace) {
         qaList.innerHTML = questionsHtml;
       } else {
-        qaList.innerHTML += questionsHtml;
+        qaList.insertAdjacentHTML('beforeend', questionsHtml);
       }
+
+      updateVoteButtonLabels();
     }
 
     function formatQuestion(question) {
@@ -447,9 +647,11 @@
       const questionMeta = [];
       if (showQuestionMeta) {
         if (question.customerName) {
-          questionMeta.push(`${textSettings.askedBy} ${question.customerName}`);
+          const askedPrefix = textSettings.askedBy ? `${textSettings.askedBy} ` : "";
+          questionMeta.push(`${askedPrefix}${question.customerName}`);
         }
-        questionMeta.push(`${textSettings.onDate} ${new Date(question.createdAt).toLocaleDateString()}`);
+        const datePrefix = textSettings.onDate ? `${textSettings.onDate} ` : "";
+        questionMeta.push(`${datePrefix}${formatDate(question.createdAt)}`);
       }
 
       // Vote button (top right) - Initial state, will be updated by checkAllVoteStatuses
@@ -460,10 +662,7 @@
             <input type="hidden" name="shop" value="{{ shop.domain }}">
             <input type="hidden" name="customerEmail" value="${customerEmail}">
             <button type="submit" class="btn btn-vote" data-votes="${question.votes || 0}">
-              <svg class="vote-icon" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6zM9 4.5a1.5 1.5 0 113 0v1a1.5 1.5 0 01-3 0v-1z"></path>
-              </svg>
-              <span>{{ block.settings.vote_button_text | default: "Helpful" }} (${question.votes || 0})</span>
+              ${voteButtonContent(displayTexts.helpful, question.votes || 0)}
             </button>
           </form>
         </div>
@@ -478,9 +677,11 @@
           const answerMeta = [];
           if (showAnswerMeta) {
             if (answer.authorName) {
-              answerMeta.push(`${textSettings.answeredBy} ${answer.authorName}`);
+              const answeredPrefix = textSettings.answeredBy ? `${textSettings.answeredBy} ` : "";
+              answerMeta.push(`${answeredPrefix}${answer.authorName}`);
             }
-            answerMeta.push(`${textSettings.onDate} ${new Date(answer.createdAt).toLocaleDateString()}`);
+            const answerDatePrefix = textSettings.onDate ? `${textSettings.onDate} ` : "";
+            answerMeta.push(`${answerDatePrefix}${formatDate(answer.createdAt)}`);
           }
 
           answersRows += `
@@ -526,12 +727,12 @@
       }
 
       const formData = new FormData(form);
-      const originalText = button.innerHTML;
+      const originalVotes = Number(button.dataset.votes || 0);
 
       // Add loading state
       button.disabled = true;
       button.classList.add('voting');
-      button.innerHTML = `<span>Voting...</span>`;
+      button.innerHTML = `<span>${displayTexts.voting}</span>`;
 
       fetch('/apps/a/api/vote', {
         method: 'POST',
@@ -544,31 +745,22 @@
           button.classList.remove('voting');
           button.classList.add('voted');
           button.disabled = true;
-          button.innerHTML = `
-            <svg class="vote-icon" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6zM9 4.5a1.5 1.5 0 113 0v1a1.5 1.5 0 01-3 0v-1z"></path>
-            </svg>
-            <span>Voted! (${data.votes})</span>
-          `;
+          button.dataset.votes = data.votes || 0;
+          button.innerHTML = voteButtonContent(displayTexts.voted, data.votes || 0);
         } else {
           // Check if error is "already voted" - if so, mark as voted
           if (data.error && data.error.includes('already voted')) {
             // Update button to voted state
-            const currentVotes = button.dataset.votes || 0;
+            const currentVotes = button.dataset.votes || originalVotes;
             button.classList.remove('voting');
             button.classList.add('voted');
             button.disabled = true;
-            button.innerHTML = `
-              <svg class="vote-icon" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6zM9 4.5a1.5 1.5 0 113 0v1a1.5 1.5 0 01-3 0v-1z"></path>
-              </svg>
-              <span>Voted! (${currentVotes})</span>
-            `;
+            button.innerHTML = voteButtonContent(displayTexts.voted, currentVotes);
           } else {
             // Other error - restore button
             button.classList.remove('voting');
             button.disabled = false;
-            button.innerHTML = originalText;
+            button.innerHTML = voteButtonContent(displayTexts.helpful, originalVotes);
             console.error('Vote failed:', data.error);
           }
         }
@@ -577,7 +769,7 @@
         console.error('Error submitting vote:', error);
         button.classList.remove('voting');
         button.disabled = false;
-        button.innerHTML = originalText;
+        button.innerHTML = voteButtonContent(displayTexts.helpful, originalVotes);
       });
 
       return false;
@@ -608,10 +800,18 @@
     });
 
     // Utility functions
-    function showLoading() {
-      if (currentPage === 1) {
-        qaList.innerHTML = '<div class="loading">Loading questions...</div>';
+    function showLoading(isFirstPage = false) {
+      if (isFirstPage) {
+        qaList.innerHTML = '';
+        const loadingEl = document.createElement('div');
+        loadingEl.className = 'loading';
+        loadingEl.textContent = displayTexts.loading;
+        qaList.appendChild(loadingEl);
       } else if (loadingMore) {
+        if (loadMoreSentinel) {
+          loadMoreSentinel.style.display = 'block';
+        }
+        loadingMore.textContent = displayTexts.loadingMore;
         loadingMore.style.display = 'block';
       }
     }
@@ -624,22 +824,27 @@
 
     function showNoQuestions() {
       qaList.innerHTML = `<div class="no-questions">${textSettings.noQuestions}</div>`;
-      if (loadMoreContainer) {
-        loadMoreContainer.style.display = 'none';
+      if (loadMoreSentinel) {
+        loadMoreSentinel.style.display = hasMore ? 'block' : 'none';
       }
     }
 
     function showError() {
-      qaList.innerHTML = '<div class="error">Failed to load questions. Please try again later.</div>';
+      qaList.innerHTML = `<div class="error">${displayTexts.error}</div>`;
+      if (loadMoreSentinel) {
+        loadMoreSentinel.style.display = 'none';
+      }
     }
 
-    function updateLoadMoreButton() {
-      if (!loadMoreContainer) return;
+    function updateSentinelDisplay() {
+      if (!loadMoreSentinel) return;
 
-      if (hasMore && filteredQuestions.length >= 10) {
-        loadMoreContainer.style.display = 'block';
-      } else {
-        loadMoreContainer.style.display = 'none';
+      loadMoreSentinel.style.display = hasMore ? 'block' : 'none';
+      if (hasMore && loadingMore) {
+        loadingMore.textContent = displayTexts.loadingMore;
+      }
+      if (!hasMore && loadingMore) {
+        loadingMore.style.display = 'none';
       }
     }
 

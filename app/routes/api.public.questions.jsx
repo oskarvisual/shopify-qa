@@ -1,8 +1,7 @@
 import { json } from "@remix-run/node";
 import { cors } from "remix-utils/cors";
 import { triggerWebhook } from "../lib/webhook.server.js";
-import { shopify } from "../shopify.server";
-import { sendNewQuestionNotification } from "../lib/email.server.js";
+import { sendNewQuestionNotification, sendQuestionPublishedNotification } from "../lib/email.server.js";
 import prisma from "../db.server";
 
 const GET_PRODUCT_DETAILS_QUERY = `
@@ -75,6 +74,9 @@ export const action = async ({ request }) => {
     let productType = null;
     let productCategory = null;
     let productTags = null;
+    let productHandle = null;
+    let productName = null;
+    let storeName = null;
 
     // Get product details securely using stored session
     try {
@@ -104,6 +106,8 @@ export const action = async ({ request }) => {
           if (productData.product) {
             productType = productData.product.product_type;
             productTags = productData.product.tags || null;
+            productHandle = productData.product.handle || null;
+            productName = productData.product.title || null;
             console.log(`Product type: ${productType}, tags: ${productTags}`);
 
             // Fetch product collections using REST API - try different approach
@@ -134,8 +138,43 @@ export const action = async ({ request }) => {
               console.log(`Using product type as fallback category: ${productCategory}`);
             }
           }
+
+          if (!storeName) {
+            try {
+              const shopResponse = await fetch(`https://${shop}/admin/api/2023-10/shop.json`, {
+                headers: {
+                  'X-Shopify-Access-Token': session.accessToken,
+                  'Content-Type': 'application/json',
+                },
+              });
+
+              if (shopResponse.ok) {
+                const shopData = await shopResponse.json();
+                storeName = shopData.shop?.name || null;
+              }
+            } catch (shopError) {
+              console.warn("Failed to fetch shop details:", shopError.message);
+            }
+          }
         } else {
           console.warn(`Failed to fetch product ${productId}: HTTP ${productResponse.status}`);
+          if (!storeName) {
+            try {
+              const shopResponse = await fetch(`https://${shop}/admin/api/2023-10/shop.json`, {
+                headers: {
+                  'X-Shopify-Access-Token': session.accessToken,
+                  'Content-Type': 'application/json',
+                },
+              });
+
+              if (shopResponse.ok) {
+                const shopData = await shopResponse.json();
+                storeName = shopData.shop?.name || null;
+              }
+            } catch (shopError) {
+              console.warn("Failed to fetch shop details:", shopError.message);
+            }
+          }
         }
       } else {
         console.warn(`No valid session found for shop ${shop}`);
@@ -172,7 +211,16 @@ export const action = async ({ request }) => {
     // Send notification email to admins
     await sendNewQuestionNotification(shop, newQuestion, {
       questionPath: `/app/questions/${newQuestion.id}`,
+      storeName,
     });
+
+    if (newQuestion.isPublished) {
+      await sendQuestionPublishedNotification(shop, newQuestion, {
+        productHandle,
+        storeName,
+        productName,
+      });
+    }
 
     const response = json({ question: newQuestion });
     return cors(request, response);

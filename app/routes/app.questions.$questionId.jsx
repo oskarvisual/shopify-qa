@@ -294,7 +294,7 @@ export default function ViewQuestionPage() {
   const [answerAuthor, setAnswerAuthor] = useState("Admin");
   const [answerEmail, setAnswerEmail] = useState("admin@store.com");
   const [answerPublished, setAnswerPublished] = useState(true);
-  const [notifyUser, setNotifyUser] = useState(false);
+  const [notifyUser, setNotifyUser] = useState(true);
 
   // Banner state
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
@@ -306,7 +306,7 @@ export default function ViewQuestionPage() {
     setAnswerAuthor("Admin");
     setAnswerEmail("admin@store.com");
     setAnswerPublished(true);
-    setNotifyUser(false);
+    setNotifyUser(true);
     setShowAnswerModal(true);
   }, []);
 

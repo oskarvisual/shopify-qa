@@ -31,6 +31,22 @@ function getAdminAppUrl(shop, path = "") {
 }
 
 /**
+ * Replaces template variables with actual values
+ * @param {string} template - The template string containing {{variable}} placeholders
+ * @param {object} variables - Object with key-value pairs for replacement
+ * @returns {string} The template with variables replaced
+ */
+function replaceEmailVariables(template, variables) {
+  if (!template) return "";
+  let result = template;
+  Object.keys(variables).forEach(key => {
+    const value = variables[key] || "";
+    result = result.replace(new RegExp(`{{${key}}}`, 'g'), value);
+  });
+  return result;
+}
+
+/**
  * @typedef {object} MailOptions
  * @property {string} to
  * @property {string} subject
@@ -161,17 +177,34 @@ export async function sendEmail(shop, mailOptions) {
 export async function sendNewQuestionNotification(shop, question, options = {}) {
   const settings = await prisma.emailSetting.findUnique({ where: { shop } });
 
-  const subject = `New Question Submitted on Your Store`;
   const questionPath = options.questionPath || `/app/questions/${question.id}`;
   const dashboardUrl = getAdminAppUrl(shop, questionPath);
   const friendlyStoreName = options.storeName || formatShopName(shop);
-  const html = `
-    <p>A new question has been submitted:</p>
-    <blockquote>${question.question}</blockquote>
-    <p>Customer: ${question.customerName || "Anonymous"}</p>
-    <p>${dashboardUrl ? `You can view and answer the question in your app dashboard <a href="${dashboardUrl}">here</a>.` : "You can view and answer the question in your app dashboard."}</p>
-    ${friendlyStoreName ? `<p>Best regards,<br />${friendlyStoreName}</p>` : ""}
-  `;
+
+  // Template variables
+  const variables = {
+    customerName: question.customerName || "Anonymous",
+    question: question.question,
+    dashboardUrl: dashboardUrl || "",
+    storeName: friendlyStoreName,
+  };
+
+  // Use custom template if available, otherwise use default
+  const defaultSubject = "New Question Submitted on Your Store";
+  const defaultBody =
+    '<p>A new question has been submitted:</p>' +
+    '<blockquote>{{question}}</blockquote>' +
+    '<p>Customer: {{customerName}}</p>' +
+    (dashboardUrl ? '<p>You can view and answer the question in your app dashboard <a href="{{dashboardUrl}}">here</a>.</p>' : '<p>You can view and answer the question in your app dashboard.</p>') +
+    (friendlyStoreName ? '<p>Best regards,<br />{{storeName}}</p>' : '');
+
+  const subject = settings?.newQuestionAdminSubject
+    ? replaceEmailVariables(settings.newQuestionAdminSubject, variables)
+    : defaultSubject;
+
+  const html = settings?.newQuestionAdminEmailBody
+    ? replaceEmailVariables(settings.newQuestionAdminEmailBody, variables)
+    : replaceEmailVariables(defaultBody, variables);
 
   // Check if this specific notification is enabled and emails are configured
   if (!settings?.notifyOnNewQuestion || !settings?.notificationEmails) {
@@ -216,19 +249,39 @@ export async function sendNewQuestionNotification(shop, question, options = {}) 
  * @param {import("@prisma/client").Answer} answer
  */
 export async function sendNewAnswerNotification(shop, question, answer, options = {}) {
-  const { productHandle, storeName } = options;
+  const settings = await prisma.emailSetting.findUnique({ where: { shop } });
+  const { productHandle, storeName, productName } = options;
   const productUrl = buildProductUrl(shop, productHandle);
   const friendlyStoreName = storeName || formatShopName(shop);
-  const subject = `Your question has been answered!`;
-  const html = `
-    <p>Hi ${question.customerName || "there"},</p>
-    <p>You asked:</p>
-    <blockquote>${question.question}</blockquote>
-    <p>A new answer has been provided:</p>
-    <blockquote>${answer.answer}</blockquote>
-    <p>${productUrl ? `You can view the question and answer on the product page <a href="${productUrl}">here</a>.` : "You can view the question and answer on the product page."}</p>
-    ${friendlyStoreName ? `<p>Best regards,<br />${friendlyStoreName}</p>` : ""}
-  `;
+
+  // Template variables
+  const variables = {
+    customerName: question.customerName || "there",
+    question: question.question,
+    answer: answer.answer,
+    productUrl: productUrl || "",
+    productName: productName || "the product",
+    storeName: friendlyStoreName,
+  };
+
+  // Use custom template if available, otherwise use default
+  const defaultSubject = "Your question has been answered!";
+  const defaultBody =
+    '<p>Hi {{customerName}},</p>' +
+    '<p>You asked:</p>' +
+    '<blockquote>{{question}}</blockquote>' +
+    '<p>A new answer has been provided:</p>' +
+    '<blockquote>{{answer}}</blockquote>' +
+    (productUrl ? '<p>You can view the question and answer on the product page <a href="{{productUrl}}">here</a>.</p>' : '<p>You can view the question and answer on the product page.</p>') +
+    (friendlyStoreName ? '<p>Best regards,<br />{{storeName}}</p>' : '');
+
+  const subject = settings?.answerEmailSubject
+    ? replaceEmailVariables(settings.answerEmailSubject, variables)
+    : defaultSubject;
+
+  const html = settings?.answerEmailBody
+    ? replaceEmailVariables(settings.answerEmailBody, variables)
+    : replaceEmailVariables(defaultBody, variables);
 
   // Check if the customer provided an email
   if (!question.customerEmail) {
@@ -254,17 +307,36 @@ export async function sendNewAnswerNotification(shop, question, answer, options 
  * @param {import("@prisma/client").Question} question
  */
 export async function sendQuestionPublishedNotification(shop, question, options = {}) {
-  const { productHandle, storeName } = options;
+  const settings = await prisma.emailSetting.findUnique({ where: { shop } });
+  const { productHandle, storeName, productName } = options;
   const productUrl = buildProductUrl(shop, productHandle);
   const friendlyStoreName = storeName || formatShopName(shop);
-  const subject = `Your question has been published!`;
-  const html = `
-    <p>Hi ${question.customerName || "there"},</p>
-    <p>You asked:</p>
-    <blockquote>${question.question}</blockquote>
-    <p>${productUrl ? `Your question has been published on our store. You can view it on the product page <a href="${productUrl}">here</a>.` : "Your question has been published on our store. You can view it on the product page."}</p>
-    ${friendlyStoreName ? `<p>Best regards,<br />${friendlyStoreName}</p>` : ""}
-  `;
+
+  // Template variables
+  const variables = {
+    customerName: question.customerName || "there",
+    question: question.question,
+    productUrl: productUrl || "",
+    productName: productName || "the product",
+    storeName: friendlyStoreName,
+  };
+
+  // Use custom template if available, otherwise use default
+  const defaultSubject = "Your question has been published!";
+  const defaultBody =
+    '<p>Hi {{customerName}},</p>' +
+    '<p>You asked:</p>' +
+    '<blockquote>{{question}}</blockquote>' +
+    (productUrl ? '<p>Your question has been published on our store. You can view it on the product page <a href="{{productUrl}}">here</a>.</p>' : '<p>Your question has been published on our store. You can view it on the product page.</p>') +
+    (friendlyStoreName ? '<p>Best regards,<br />{{storeName}}</p>' : '');
+
+  const subject = settings?.questionPublishedSubject
+    ? replaceEmailVariables(settings.questionPublishedSubject, variables)
+    : defaultSubject;
+
+  const html = settings?.questionPublishedEmailBody
+    ? replaceEmailVariables(settings.questionPublishedEmailBody, variables)
+    : replaceEmailVariables(defaultBody, variables);
 
   // Check if the customer provided an email
   if (!question.customerEmail) {
