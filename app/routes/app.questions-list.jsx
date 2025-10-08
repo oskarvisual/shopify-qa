@@ -12,6 +12,7 @@ import {
   Button,
   InlineStack,
   Select,
+  Link as PolarisLink,
   Text,
   Badge,
 } from "@shopify/polaris";
@@ -225,10 +226,13 @@ export default function QuestionsListPage() {
       <IndexTable.Cell><BlockStack gap="100"><Text variant="bodyMd" fontWeight="semibold">{customerName || "Anonymous"}</Text>{customerEmail && <Text variant="bodySm" tone="subdued">{customerEmail}</Text>}</BlockStack></IndexTable.Cell>
       <IndexTable.Cell>
         {productMap[productId] ? (
-          <InlineStack gap="200" blockAlign="center">
-            <Button size="slim" url={`https://${shop}/products/${productMap[productId].handle}`} target="_blank">View</Button>
-            <Button size="slim" url={`https://${shop}/admin/products/${productId}`} target="_blank">Edit</Button>
-          </InlineStack>
+          <BlockStack gap="200">
+            <Text variant="bodyMd" fontWeight="semibold">{productMap[productId].title}</Text>
+            <InlineStack gap="200" blockAlign="center">
+              <Button size="slim" url={`https://${shop}/products/${productMap[productId].handle}`} target="_blank">View</Button>
+              <Button size="slim" url={`https://${shop}/admin/products/${productId}`} target="_blank">Edit</Button>
+            </InlineStack>
+          </BlockStack>
         ) : (
           "Product not found"
         )}

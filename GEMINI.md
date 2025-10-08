@@ -44,6 +44,7 @@ El archivo `.env` debe existir con:
 DATABASE_URL="mysql://user:password@localhost:3307/qa"
 SHOPIFY_API_KEY="tu_api_key"
 SHOPIFY_API_SECRET="tu_api_secret"
+OPENAI_API_KEY="tu_openai_api_key"
 ```
 
 ### 3. Archivos importantes del proyecto

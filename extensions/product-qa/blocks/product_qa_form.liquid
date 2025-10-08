@@ -1,468 +1,378 @@
 {% comment %}
   Product Q&A Form Block
-  Shared form and modal for customer questions
+  - Handles both an inline form and a shared modal form.
+  - Implements AI-first workflow for customer questions.
 {% endcomment %}
 
 <div class="product-qa-wrapper" data-product-id="{{ product.id }}">
-  <!-- Always Visible Form -->
+  <!-- Always Visible INLINE Form -->
   <div class="product-qa-form">
     <h3>{{ block.settings.title }}</h3>
-
-    <form id="qa-form" class="qa-form">
-      <div class="form-group">
-        <label for="customer-name">{{ block.settings.name_label | default: 'Your Name' }}</label>
-        <input type="text" id="customer-name" name="customerName" value="{{ customer.name }}" {% if block.settings.name_required %}required{% endif %}>
+    <form id="qa-form" class="qa-form" onsubmit="return false;">
+      <div id="qa-ai-response-container" style="display: none;">
+        <p><strong>Suggested Answer:</strong></p>
+        <div id="qa-ai-answer"></div>
+        <div class="qa-vote-container">
+          <button type="button" class="btn-vote helpful"></button>
+          <button type="button" class="btn-vote not-helpful"></button>
+        </div>
+        <div class="qa-ai-options">
+          <p id="qa-human-prompt"></p>
+          <button type="button" id="qa-ask-human-btn" class="btn btn-secondary"></button>
+        </div>
       </div>
-
-      <div class="form-group">
-        <label for="customer-email">{{ block.settings.email_label | default: 'Your Email' }}</label>
-        <input type="email" id="customer-email" name="customerEmail" value="{{ customer.email }}" {% if block.settings.email_required %}required{% endif %}>
+      <div id="qa-question-container">
+        <div class="form-group">
+          <label for="question">{{ block.settings.question_label | default: 'Your Question' }}</label>
+          <textarea id="question" name="question" rows="4" required maxlength="500"></textarea>
+          <div class="char-counter">0 / 500</div>
+        </div>
       </div>
-
-      <div class="form-group">
-        <label for="question">{{ block.settings.question_label | default: 'Your Question' }}</label>
-        <textarea id="question" name="question" rows="4" required maxlength="500"></textarea>
-        <div class="char-counter">0 / 500</div>
+      <div id="qa-human-form-fields" style="display: none;">
+        <div class="form-group">
+          <label for="customer-name">{{ block.settings.name_label | default: 'Your Name' }}</label>
+          <input type="text" id="customer-name" name="customerName" value="{{ customer.name }}" {% if block.settings.name_required %}required{% endif %}>
+        </div>
+        <div class="form-group">
+          <label for="customer-email">{{ block.settings.email_label | default: 'Your Email' }}</label>
+          <input type="email" id="customer-email" name="customerEmail" value="{{ customer.email }}" {% if block.settings.email_required %}required{% endif %}>
+        </div>
       </div>
-
       <input type="hidden" name="shop" value="{{ shop.domain }}">
       <input type="hidden" name="productId" value="{{ product.id }}">
-
-      <button type="submit" class="btn btn-primary">{{ block.settings.submit_text | default: 'Submit Question' }}</button>
+      <div class="qa-form-actions">
+        <button type="submit" id="qa-submit-btn" class="btn btn-primary btn-full-width" data-default-text="{{ block.settings.submit_text | default: 'Submit Question' }}"></button>
+        <button type="button" id="qa-ask-ai-btn" class="btn btn-primary btn-full-width" style="display: none;" data-default-text="Ask with AI"></button>
+        <button type="button" id="qa-bypass-ai-btn" class="btn-link-style" style="display: none;"></button>
+      </div>
     </form>
-
     <div id="form-message" class="form-message" style="display: none;"></div>
   </div>
 </div>
 
-<!-- Shared Modal (only for display section) -->
+<!-- SHARED MODAL structure -->
 <div id="qa-shared-modal" class="qa-modal" style="display: none;">
   <div class="qa-modal-content">
     <span class="close-modal">&times;</span>
     <div class="product-qa-form">
-      <h3 id="qa-modal-title">Ask a Question</h3>
-
-      <form id="qa-form-modal" class="qa-form">
-        <div class="form-group">
-          <label for="customer-name-modal" id="name-label-modal">Your Name</label>
-          <input type="text" id="customer-name-modal" name="customerName" value="{{ customer.name }}">
+      <h3 id="qa-modal-title">{{ block.settings.ask_modal_title | default: "Ask a Question" }}</h3>
+      <form id="qa-form-modal" class="qa-form" onsubmit="return false;">
+        <div id="qa-ai-response-container-modal" style="display: none;">
+          <p><strong>Suggested Answer:</strong></p>
+          <div id="qa-ai-answer-modal"></div>
+          <div class="qa-vote-container-modal">
+            <button type="button" class="btn-vote helpful"></button>
+            <button type="button" class="btn-vote not-helpful"></button>
+          </div>
+          <div class="qa-ai-options">
+            <p id="qa-human-prompt-modal"></p>
+            <button type="button" id="qa-ask-human-btn-modal" class="btn btn-secondary"></button>
+          </div>
         </div>
-
-        <div class="form-group">
-          <label for="customer-email-modal" id="email-label-modal">Your Email</label>
-          <input type="email" id="customer-email-modal" name="customerEmail" value="{{ customer.email }}">
+        <div id="qa-question-container-modal">
+          <div class="form-group">
+            <label for="question-modal">{{ block.settings.modal_question_label | default: 'Your Question' }}</label>
+            <textarea id="question-modal" name="question" rows="4" required maxlength="500"></textarea>
+            <div class="char-counter-modal">0 / 500</div>
+          </div>
         </div>
-
-        <div class="form-group">
-          <label for="question-modal" id="question-label-modal">Your Question</label>
-          <textarea id="question-modal" name="question" rows="4" required maxlength="500"></textarea>
-          <div class="char-counter-modal">0 / 500</div>
+        <div id="qa-human-form-fields-modal" style="display: none;">
+          <div class="form-group">
+            <label for="customer-name-modal">{{ block.settings.modal_name_label | default: 'Your Name' }}</label>
+            <input type="text" id="customer-name-modal" name="customerName" value="{{ customer.name }}" {% if block.settings.modal_name_required %}required{% endif %}>
+          </div>
+          <div class="form-group">
+            <label for="customer-email-modal">{{ block.settings.modal_email_label | default: 'Your Email' }}</label>
+            <input type="email" id="customer-email-modal" name="customerEmail" value="{{ customer.email }}" {% if block.settings.modal_email_required %}required{% endif %}>
+          </div>
         </div>
-
         <input type="hidden" name="shop" value="{{ shop.domain }}">
         <input type="hidden" name="productId" value="{{ product.id }}">
-
-        <button type="submit" class="btn btn-primary" id="submit-btn-modal">Submit Question</button>
+        <div class="qa-form-actions">
+            <button type="submit" id="qa-submit-btn-modal" class="btn btn-primary btn-full-width" data-default-text="{{ block.settings.modal_submit_text | default: 'Submit Question' }}"></button>
+            <button type="button" id="qa-ask-ai-btn-modal" class="btn btn-primary btn-full-width" style="display: none;" data-default-text="Ask with AI"></button>
+            <button type="button" id="qa-bypass-ai-btn-modal" class="btn-link-style" style="display: none;"></button>
+        </div>
       </form>
-
       <div id="form-message-modal" class="form-message" style="display: none;"></div>
     </div>
   </div>
 </div>
 
 <style>
-  .product-qa-wrapper {
-    margin: 20px auto;
-    {% if block.settings.form_width == 'full_width' %}
-      max-width: 100%;
-    {% else %}
-      max-width: {{ block.settings.form_max_width | default: 600 }}px;
-    {% endif %}
-  }
-
-  .char-counter, .char-counter-modal {
-    text-align: right;
-    font-size: 12px;
-    color: #6B7280;
-    margin-top: 4px;
-  }
-
-  .qa-modal {
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.5);
-    backdrop-filter: blur(3px);
-  }
-
-  .qa-modal-content {
-    background-color: #ffffff;
-    margin: 5% auto;
-    padding: 0;
-    border-radius: 10px;
-    width: 90%;
-    max-width: 600px;
-    max-height: 80vh;
-    overflow-y: auto;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-    animation: modalSlideIn 0.3s ease-out;
-  }
-
-  @keyframes modalSlideIn {
-    from { opacity: 0; transform: translateY(-50px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .close-modal {
-    color: #aaa;
-    float: right;
-    font-size: 28px;
-    font-weight: bold;
-    padding: 15px 20px 0 0;
-    cursor: pointer;
-    transition: color 0.3s ease;
-  }
-
-  .close-modal:hover,
-  .close-modal:focus {
-    color: #000;
-  }
-
-  .product-qa-form {
-    padding: {{ block.settings.form_inner_padding | default: 30 }}px;
-    background: {{ block.settings.form_inner_background | default: '#ffffff' }};
-    border-radius: {{ block.settings.form_border_radius | default: 8 }}px;
-    border: {{ block.settings.form_border_width | default: 1 }}px solid {{ block.settings.form_border_color | default: '#e1e1e1' }};
-    {% if block.settings.form_show_shadow %}
-      box-shadow: 0 2px 10px {{ block.settings.form_shadow_color | default: 'rgba(0,0,0,0.1)' }};
-    {% endif %}
-  }
-
-  .product-qa-form h3 {
-    margin-top: 0;
-    margin-bottom: 20px;
-    color: {{ block.settings.title_color | default: '#333333' }};
-    font-size: {{ block.settings.title_font_size | default: 24 }}px;
-    font-weight: 600;
-  }
-
-  .form-group {
-    margin-bottom: 20px;
-  }
-
-  .form-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 600;
-    color: {{ block.settings.text_color | default: '#333333' }};
-    font-size: 14px;
-  }
-
-  .form-group input,
-  .form-group textarea {
-    width: 100%;
-    padding: 12px 15px;
-    border: 1px solid {{ block.settings.input_border_color | default: '#e1e1e1' }};
-    border-radius: {{ block.settings.input_border_radius | default: 6 }}px;
-    font-size: 16px;
-    font-family: inherit;
-    transition: all 0.3s ease;
-    background-color: #ffffff;
-    color: {{ block.settings.text_color | default: '#333333' }};
-    box-sizing: border-box;
-  }
-
-  .form-group input:focus,
-  .form-group textarea:focus {
-    outline: none;
-    border-color: {{ block.settings.input_focus_border_color | default: '#007cba' }};
-    box-shadow: 0 0 0 3px {{ block.settings.input_focus_border_color | color_modify: 'alpha', 0.1 }};
-  }
-
-  .form-group textarea {
-    resize: vertical;
-    min-height: 100px;
-  }
-
-  .btn {
-    padding: 12px 24px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 16px;
-    font-weight: 600;
-    transition: all 0.3s ease;
-    text-transform: none;
-  }
-
-  .btn-primary {
-    background: {{ block.settings.submit_button_bg_color | default: '#007cba' }};
-    color: {{ block.settings.submit_button_text_color | default: '#ffffff' }};
-    box-shadow: 0 2px 4px rgba(0,123,186,0.3);
-  }
-
-  .btn-primary:hover {
-    background: {{ block.settings.submit_button_bg_color | default: '#007cba' | color_darken: 10 }};
-    transform: translateY(-1px);
-    box-shadow: 0 4px 8px rgba(0,123,186,0.4);
-  }
-
-  .btn-primary:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 4px rgba(0,123,186,0.3);
-  }
-
-  .form-message {
-    margin-top: 20px;
-    padding: 15px;
-    border-radius: 6px;
-    font-size: 14px;
-    font-weight: 500;
-    animation: messageSlideIn 0.3s ease-out;
-  }
-
-  @keyframes messageSlideIn {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .form-message.success {
-    background: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
-  }
-
-  .form-message.error {
-    background: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
-  }
-
-  /* Loading state */
-  .form-loading .btn-primary {
-    opacity: 0.7;
-    cursor: not-allowed;
-    position: relative;
-  }
-
-  .form-loading .btn-primary::after {
-    content: '';
-    position: absolute;
-    right: 15px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 16px;
-    height: 16px;
-    border: 2px solid transparent;
-    border-top: 2px solid currentColor;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    0% { transform: translateY(-50%) rotate(0deg); }
-    100% { transform: translateY(-50%) rotate(360deg); }
-  }
-
-  /* Responsive */
-  @media (max-width: 768px) {
-    .qa-modal-content {
-      width: 95%;
-      margin: 10% auto;
-    }
-
-    .product-qa-form {
-      padding: 15px 20px 20px;
-    }
-  }
+  .product-qa-wrapper { margin: 20px auto; max-width: {{ block.settings.form_max_width | default: 600 }}px; }
+  .char-counter, .char-counter-modal { text-align: right; font-size: 12px; color: #6B7280; margin-top: 4px; }
+  .product-qa-form { padding: {{ block.settings.form_inner_padding | default: 30 }}px; background: #fff; border-radius: 8px; border: 1px solid #e1e1e1; }
+  .product-qa-form h3 { margin-top: 0; margin-bottom: 20px; font-size: 22px; }
+  .qa-modal .product-qa-form { border: none; background: transparent; box-shadow: none; }
+  .form-group { margin-bottom: 20px; }
+  .form-group label { display: block; margin-bottom: 8px; font-weight: 600; }
+  .form-group input, .form-group textarea { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; box-sizing: border-box; }
+  .form-group textarea { resize: vertical; min-height: 100px; }
+  .btn { padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: 600; transition: all 0.3s ease; }
+  .btn.btn-full-width { width: 100%; }
+  .btn-primary { background: {{ block.settings.submit_button_bg_color | default: '#007cba' }}; color: #fff; }
+  .btn-secondary { background: #f0f0f0; color: #333; }
+  .btn-link-style { background: none; border: none; color: #6B7280; text-decoration: underline; cursor: pointer; padding: 10px; font-size: 14px; width: 100%; text-align: center; }
+  .qa-form-actions { display: flex; flex-direction: column; gap: 10px; }
+  .form-message { margin-top: 20px; padding: 15px; border-radius: 6px; }
+  .form-message.success { background: #d4edda; color: #155724; }
+  .form-message.error { background: #f8d7da; color: #721c24; }
+  .btn[disabled] { opacity: 0.7; cursor: not-allowed; }
+  #qa-ai-response-container, #qa-ai-response-container-modal { padding: 15px; border: 1px solid #e1e1e1; border-radius: 6px; margin-bottom: 20px; background: #f9f9f9; }
+  #qa-ai-answer, #qa-ai-answer-modal { margin-bottom: 15px; white-space: pre-wrap; }
+  .qa-vote-container, .qa-vote-container-modal { display: flex; justify-content: center; gap: 10px; margin-bottom: 15px; }
+  .btn-vote { padding: 8px 16px; }
+  .qa-ai-options { margin-top: 15px; border-top: 1px solid #e1e1e1; padding-top: 15px; text-align: center; }
+  .qa-ai-options p { margin: 0 0 10px; font-size: 14px; }
+  .qa-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+  .qa-modal-content { background-color: #fefefe; margin: 10% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 8px; }
+  .close-modal { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
 </style>
 
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    const productId = document.querySelector('[data-product-id]')?.dataset.productId;
-    const sharedModal = document.getElementById('qa-shared-modal');
-    const qaForm = document.getElementById('qa-form');
-    const qaFormModal = document.getElementById('qa-form-modal');
-    const formMessage = document.getElementById('form-message');
-    const formMessageModal = document.getElementById('form-message-modal');
-
-    if (!productId) {
-      console.error('Product ID not found');
-      return;
-    }
-
-    const CHARACTER_LIMIT = 500;
-    const defaultMessages = {
-      success: 'Thank you! Your question has been submitted successfully.',
-      error: 'Sorry, there was an error submitting your question.',
-      submitting: 'Submitting...',
-      charLimit: 'Your question cannot exceed {{limit}} characters.',
-    };
-    let messages = { ...defaultMessages };
-
+document.addEventListener('DOMContentLoaded', function() {
+    const productId = document.querySelector('.product-qa-wrapper')?.dataset.productId;
     const shopDomain = '{{ shop.domain }}';
-    if (shopDomain) {
-      const translationUrl = `/apps/a/api/public/translations?shop=${encodeURIComponent(shopDomain)}`;
-      fetch(translationUrl)
-        .then((response) => (response.ok ? response.json() : null))
-        .then((data) => {
-          if (data?.translations) {
-            const { translations } = data;
-            messages = {
-              ...messages,
-              ...(translations.formSuccessMessage ? { success: translations.formSuccessMessage } : {}),
-              ...(translations.formErrorMessage ? { error: translations.formErrorMessage } : {}),
-              ...(translations.formSubmittingText ? { submitting: translations.formSubmittingText } : {}),
-              ...(translations.formCharLimitMessage ? { charLimit: translations.formCharLimitMessage } : {}),
-            };
-          }
-        })
-        .catch((error) => {
-          console.warn('Failed to load translations for Product Q&A form:', error);
-        });
-    }
+    if (!productId) return;
 
-    // Character counter setup
-    function setupCharCounter(textarea, counter) {
-      textarea.addEventListener('input', () => {
-        const count = textarea.value.length;
-        counter.textContent = `${count} / ${CHARACTER_LIMIT}`;
-        if (count > CHARACTER_LIMIT) {
-          counter.style.color = '#d9534f';
+    const sharedModal = document.getElementById('qa-shared-modal');
+    let texts = {
+        success: 'Thank you! Your question has been submitted.',
+        error: 'There was an error.',
+        submitting: 'Submitting...',
+        aiSubmitButton: 'Ask with AI',
+        aiHumanPrompt: 'Not the answer you were looking for?',
+        aiHumanButton: 'Ask a Human Expert',
+        aiBypassButton: 'Or, ask a human',
+        aiHelpfulButton: 'Helpful',
+        aiNotHelpfulButton: 'Not Helpful'
+    };
+
+    window.openQAModal = function() { if (sharedModal) sharedModal.style.display = 'block'; };
+    window.closeQAModal = function() { if (sharedModal) sharedModal.style.display = 'none'; };
+    if (sharedModal) {
+      sharedModal.querySelector('.close-modal')?.addEventListener('click', window.closeQAModal);
+      sharedModal.addEventListener('click', (e) => { if (e.target === sharedModal) window.closeQAModal(); });
+    }
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sharedModal?.style.display === 'block') window.closeQAModal(); });
+
+    function setupForm(formId) {
+      const formElement = document.getElementById(formId);
+      if (!formElement) return null;
+
+      const isModal = formId.includes('modal');
+      const prefix = isModal ? '-modal' : '';
+      let currentAiLogId = null;
+
+      const elements = {
+        questionContainer: document.getElementById('qa-question-container' + prefix),
+        humanFormFields: document.getElementById('qa-human-form-fields' + prefix),
+        aiResponseContainer: document.getElementById('qa-ai-response-container' + prefix),
+        aiAnswerDiv: document.getElementById('qa-ai-answer' + prefix),
+        voteContainer: formElement.querySelector('.qa-vote-container' + prefix),
+        submitBtn: document.getElementById('qa-submit-btn' + prefix),
+        askAiBtn: document.getElementById('qa-ask-ai-btn' + prefix),
+        askHumanBtn: document.getElementById('qa-ask-human-btn' + prefix),
+        bypassAiBtn: document.getElementById('qa-bypass-ai-btn' + prefix),
+        questionTextarea: document.getElementById('question' + prefix),
+        formMessage: document.getElementById('form-message' + prefix),
+        charCounter: formElement.querySelector('.char-counter' + prefix),
+        humanPrompt: document.getElementById('qa-human-prompt' + prefix)
+      };
+
+      if (!elements.questionTextarea) return null;
+
+      if (elements.charCounter) {
+        elements.questionTextarea.addEventListener('input', () => {
+          elements.charCounter.textContent = `${elements.questionTextarea.value.length} / 500`;
+        });
+      }
+
+      async function updateAiLog(data) {
+        if (!currentAiLogId) return;
+        try {
+          await fetch('/apps/a/api/public/ai-log-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ aiLogId: currentAiLogId, ...data })
+          });
+        } catch (error) {
+          console.error('Failed to update AI log:', error);
+        }
+      }
+
+      function showHumanForm() {
+        if (currentAiLogId) {
+            updateAiLog({ askedHuman: true });
+        }
+        elements.aiResponseContainer.style.display = 'none';
+        elements.questionContainer.style.display = 'block';
+        elements.humanFormFields.style.display = 'block';
+        elements.askAiBtn.style.display = 'none';
+        elements.bypassAiBtn.style.display = 'none';
+        elements.submitBtn.style.display = 'inline-block';
+      }
+
+      function setInitialState(aiEnabled) {
+        if (aiEnabled) {
+          elements.askAiBtn.style.display = 'inline-block';
+          elements.bypassAiBtn.style.display = 'inline-block';
+          elements.submitBtn.style.display = 'none';
+          elements.humanFormFields.style.display = 'none';
         } else {
-          counter.style.color = '#6B7280';
+          showHumanForm();
+        }
+      }
+
+      elements.askHumanBtn.addEventListener('click', showHumanForm);
+      elements.bypassAiBtn.addEventListener('click', showHumanForm);
+
+      elements.voteContainer.addEventListener('click', (e) => {
+        if (e.target.classList.contains('btn-vote')) {
+            const voteValue = e.target.classList.contains('helpful') ? 1 : -1;
+            updateAiLog({ vote: voteValue });
+            elements.voteContainer.innerHTML = '<p>Thanks for your feedback!</p>';
         }
       });
-    }
 
-    const questionTextarea = document.getElementById('question');
-    const questionCounter = qaForm.querySelector('.char-counter');
-    if (questionTextarea && questionCounter) {
-      setupCharCounter(questionTextarea, questionCounter);
-    }
-
-    const questionTextareaModal = document.getElementById('question-modal');
-    const questionCounterModal = qaFormModal.querySelector('.char-counter-modal');
-    if (questionTextareaModal && questionCounterModal) {
-      setupCharCounter(questionTextareaModal, questionCounterModal);
-    }
-
-    // Global function to open shared modal
-    window.openQAModal = function() {
-      if (sharedModal && window.qaModalSettings) {
-        const modalTitle = document.getElementById('qa-modal-title');
-        const nameLabel = document.getElementById('name-label-modal');
-        const nameInput = document.getElementById('customer-name-modal');
-        const emailLabel = document.getElementById('email-label-modal');
-        const emailInput = document.getElementById('customer-email-modal');
-        const questionLabel = document.getElementById('question-label-modal');
-        const submitBtn = document.getElementById('submit-btn-modal');
-
-        if (modalTitle) modalTitle.textContent = window.qaModalSettings.title;
-        if (nameLabel) nameLabel.textContent = window.qaModalSettings.nameLabel;
-        if (nameInput) nameInput.required = window.qaModalSettings.nameRequired;
-        if (emailLabel) emailLabel.textContent = window.qaModalSettings.emailLabel;
-        if (emailInput) emailInput.required = window.qaModalSettings.emailRequired;
-        if (questionLabel) questionLabel.textContent = window.qaModalSettings.questionLabel;
-        if (submitBtn) submitBtn.textContent = window.qaModalSettings.submitText;
-
-        sharedModal.style.display = 'block';
-        document.body.style.overflow = 'hidden';
-      }
-    };
-
-    // Global function to close shared modal
-    window.closeQAModal = function() {
-      if (sharedModal) {
-        sharedModal.style.display = 'none';
-        document.body.style.overflow = '';
-        if (qaFormModal) qaFormModal.reset();
-        hideMessage(true);
-      }
-    };
-
-    if (sharedModal) {
-      const closeModalBtn = sharedModal.querySelector('.close-modal');
-      if (closeModalBtn) closeModalBtn.addEventListener('click', window.closeQAModal);
-      sharedModal.addEventListener('click', (e) => {
-        if (e.target === sharedModal) window.closeQAModal();
-      });
-    }
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && sharedModal && sharedModal.style.display === 'block') {
-        window.closeQAModal();
-      }
-    });
-
-    function handleFormSubmit(form, isModal = false) {
-      form.addEventListener('submit', function(e) {
-        e.preventDefault();
-        const formData = new FormData(this);
-        const questionValue = formData.get('question');
-
-        if (questionValue.length > CHARACTER_LIMIT) {
-          const charLimitMessage = (messages.charLimit || defaultMessages.charLimit).replace('{{limit}}', CHARACTER_LIMIT);
-          showMessage(charLimitMessage, 'error', isModal);
+      elements.askAiBtn.addEventListener('click', async () => {
+        const question = elements.questionTextarea.value.trim();
+        if (!question) {
+          showMessage('Please enter a question first.', 'error');
           return;
         }
 
-        const submitBtn = this.querySelector('button[type="submit"]');
-        const originalText = submitBtn.textContent;
-        submitBtn.textContent = messages.submitting || defaultMessages.submitting;
-        submitBtn.disabled = true;
-        this.classList.add('form-loading');
+        elements.askAiBtn.disabled = true;
+        elements.askAiBtn.textContent = texts.submitting;
+        elements.bypassAiBtn.style.display = 'none';
+        hideMessage();
+
+        try {
+          const response = await fetch('/apps/a/api/public/ai-answer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customerQuestion: question, productId, shop: shopDomain })
+          });
+
+          if (!response.ok) throw new Error('Network response was not ok');
+          const data = await response.json();
+          currentAiLogId = data.aiLogId;
+
+          if (data.error || !data.answer || data.answer.includes("couldn't find enough information")) {
+            showMessage(data.error || 'No immediate answer available. Please ask a human expert.', 'error');
+            showHumanForm();
+          } else {
+            elements.aiAnswerDiv.textContent = data.answer;
+            elements.aiResponseContainer.style.display = 'block';
+            elements.questionContainer.style.display = 'none';
+            elements.askAiBtn.style.display = 'none';
+            elements.submitBtn.style.display = 'none';
+          }
+        } catch (error) {
+          console.error('AI Answer fetch error:', error);
+          showMessage('Error contacting AI. Please ask a human expert.', 'error');
+          showHumanForm();
+        } finally {
+          elements.askAiBtn.disabled = false;
+          elements.askAiBtn.textContent = elements.askAiBtn.dataset.defaultText;
+        }
+      });
+
+      elements.submitBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const formData = new FormData(formElement);
+        elements.submitBtn.disabled = true;
+        elements.submitBtn.textContent = texts.submitting;
 
         fetch('/apps/a/api/public/questions', { method: 'POST', body: formData })
-        .then(response => response.json())
-        .then(data => {
-          if (data.question || data.success) {
-            showMessage(messages.success || defaultMessages.success, 'success', isModal);
-            this.reset();
-            if (window.reloadQuestions) setTimeout(() => window.reloadQuestions(), 1000);
-            if (isModal && sharedModal && sharedModal.style.display === 'block') {
-              setTimeout(() => window.closeQAModal(), 2000);
+          .then(res => res.json())
+          .then(data => {
+            if (data.question || data.success) {
+              showMessage(texts.success, 'success');
+              formElement.reset();
+              if (window.reloadQuestions) setTimeout(() => window.reloadQuestions(), 1000);
+              if (isModal) setTimeout(window.closeQAModal, 2000);
+            } else {
+              showMessage(data.error || texts.error, 'error');
             }
-          } else {
-            const errorMessage = data.error || messages.error || defaultMessages.error;
-            showMessage(errorMessage, 'error', isModal);
-          }
-        })
-        .catch(error => {
-          console.error('Error submitting question:', error);
-          showMessage(messages.error || defaultMessages.error, 'error', isModal);
-        })
-        .finally(() => {
-          submitBtn.textContent = originalText;
-          submitBtn.disabled = false;
-          this.classList.remove('form-loading');
-        });
+          })
+          .catch(err => showMessage(texts.error, 'error'))
+          .finally(() => {
+            elements.submitBtn.disabled = false;
+            elements.submitBtn.textContent = elements.submitBtn.dataset.defaultText;
+          });
       });
-    }
-
-    if (qaForm) handleFormSubmit(qaForm, false);
-    if (qaFormModal) handleFormSubmit(qaFormModal, true);
-
-    function showMessage(message, type, isModal = false) {
-      const messageElement = isModal ? formMessageModal : formMessage;
-      if (messageElement) {
-        messageElement.textContent = message;
-        messageElement.className = `form-message ${type}`;
-        messageElement.style.display = 'block';
+      
+      function showMessage(message, type) {
+        if (!elements.formMessage) return;
+        elements.formMessage.textContent = message;
+        elements.formMessage.className = `form-message ${type}`;
+        elements.formMessage.style.display = 'block';
       }
+
+      function hideMessage() {
+        if (!elements.formMessage) return;
+        elements.formMessage.style.display = 'none';
+      }
+
+      function applyTranslations(translations) {
+        texts = {
+            ...texts,
+            ...(translations.formSuccessMessage && { success: translations.formSuccessMessage }),
+            ...(translations.formErrorMessage && { error: translations.formErrorMessage }),
+            ...(translations.formSubmittingText && { submitting: translations.formSubmittingText }),
+            ...(translations.aiSubmitButton && { aiSubmitButton: translations.aiSubmitButton }),
+            ...(translations.aiHumanPrompt && { aiHumanPrompt: translations.aiHumanPrompt }),
+            ...(translations.aiHumanButton && { aiHumanButton: translations.aiHumanButton }),
+            ...(translations.aiBypassButton && { aiBypassButton: translations.aiBypassButton }),
+            ...(translations.aiHelpfulButton && { aiHelpfulButton: translations.aiHelpfulButton }),
+            ...(translations.aiNotHelpfulButton && { aiNotHelpfulButton: translations.aiNotHelpfulButton }),
+        };
+
+        if (elements.submitBtn) {
+            elements.submitBtn.textContent = elements.submitBtn.dataset.defaultText;
+        }
+        if (elements.askAiBtn) {
+            elements.askAiBtn.textContent = texts.aiSubmitButton;
+            elements.askAiBtn.dataset.defaultText = texts.aiSubmitButton;
+        }
+        if(elements.humanPrompt) elements.humanPrompt.textContent = texts.aiHumanPrompt;
+        if(elements.askHumanBtn) elements.askHumanBtn.textContent = texts.aiHumanButton;
+        if(elements.bypassAiBtn) elements.bypassAiBtn.textContent = texts.aiBypassButton;
+
+        const helpfulBtn = elements.voteContainer.querySelector('.helpful');
+        if(helpfulBtn) helpfulBtn.textContent = texts.aiHelpfulButton;
+        const notHelpfulBtn = elements.voteContainer.querySelector('.not-helpful');
+        if(notHelpfulBtn) notHelpfulBtn.textContent = texts.aiNotHelpfulButton;
+      }
+
+      return { setInitialState, applyTranslations };
     }
 
-    function hideMessage(isModal = false) {
-      const messageElement = isModal ? formMessageModal : formMessage;
-      if (messageElement) {
-        messageElement.style.display = 'none';
-        messageElement.className = 'form-message';
+    const inlineForm = setupForm('qa-form');
+    const modalForm = setupForm('qa-form-modal');
+
+    Promise.all([
+      fetch(`/apps/a/api/public/ai-settings?shop=${encodeURIComponent(shopDomain)}`).then(res => res.ok ? res.json() : { aiEnabled: false }),
+      fetch(`/apps/a/api/public/translations?shop=${encodeURIComponent(shopDomain)}`).then(res => res.ok ? res.json() : { translations: {} })
+    ]).then(([aiSettings, translationData]) => {
+      const translations = translationData.translations || {};
+      
+      if (inlineForm) {
+        inlineForm.applyTranslations(translations);
+        inlineForm.setInitialState(aiSettings.aiEnabled);
       }
-    }
-  });
+      if (modalForm) {
+        modalForm.applyTranslations(translations);
+        modalForm.setInitialState(aiSettings.aiEnabled);
+      }
+    }).catch(error => {
+      console.error("Error fetching settings or translations:", error);
+      if (inlineForm) inlineForm.setInitialState(false);
+      if (modalForm) modalForm.setInitialState(false);
+    });
+});
 </script>
 
 {% schema %}
@@ -619,7 +529,7 @@
       "id": "submit_button_text_color",
       "label": "Submit Button Text Color",
       "default": "#ffffff"
-    },
+    }
   ]
 }
 {% endschema %}

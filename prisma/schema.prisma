@@ -5,9 +5,6 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
-// enough when changing adapters.
-// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
@@ -35,9 +32,9 @@ model Question {
   id               String    @id @default(cuid())
   shop             String
   productId        String
-  productType      String?   // Technical product type (e.g., "snowboard")
-  productCategory  String?   // Main collection/category (e.g., "Hydrogen")
-  productTags      String?   // Comma-separated tags (e.g., "Accessory, Sport, Winter")
+  productType      String?
+  productCategory  String?
+  productTags      String?
   customerName     String?
   customerEmail    String?
   question         String    @db.Text
@@ -45,7 +42,7 @@ model Question {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   votes            Int       @default(0)
-  originalImportId String?   // To map answers to questions during import
+  originalImportId String?
 
   answers    Answer[]
   voteLogs   VoteLog[]
@@ -65,7 +62,7 @@ model Answer {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade, map: "Answer_questionId_fkey")
 
   @@index([shop, questionId])
   @@index([questionId])
@@ -75,7 +72,7 @@ model VoteLog {
   id         String   @id @default(cuid())
   questionId String
   shop       String
-  identifier String // Will store IP address or customer ID/email
+  identifier String
   createdAt  DateTime @default(now())
 
   question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
@@ -107,15 +104,13 @@ model EmailSetting {
   notifyOnNewQuestion  Boolean   @default(false)
   autoApproveQuestions Boolean @default(false)
   notificationEmails   String?   @db.Text
-  smtpProvider         String    @default("APP") // "APP" or "CUSTOM"
+  smtpProvider         String    @default("APP")
   smtpHost             String?
   smtpPort             Int?
   smtpUser             String?
-  // TODO: This should be encrypted at rest
   smtpPass             String?
   smtpSecure           Boolean   @default(true)
 
-  // Email templates
   answerEmailSubject          String? @db.Text
   answerEmailBody             String? @db.Text
   questionPublishedSubject    String? @db.Text
@@ -146,10 +141,52 @@ model EmailLog {
   smtpHost  String?
   smtpPort  Int?
   smtpUser  String?
-  status    String   // e.g., "SENT", "FAILED"
+  status    String
   response  String?  @db.Text
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([shop])
+}
+
+model AiSetting {
+  id              String    @id @default(cuid())
+  shop            String    @unique
+  aiEnabled       Boolean   @default(false)
+  aiLanguage      String    @default("English")
+  aiInstructions  String?   @db.Text
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model AiLog {
+  id               String    @id @default(cuid())
+  shop             String
+  productId        String
+  customerQuestion String    @db.Text
+  aiAnswer         String?   @db.Text
+  vote             Int?
+  askedHuman       Boolean   @default(false)
+  noAnswer         Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  feedback         AiFeedback[]
+
+  @@index([shop, productId])
+}
+
+model AiFeedback {
+  id           String    @id @default(cuid())
+  aiLogId      String
+  adminUserId  String
+  adminUserName String?
+  rating       Int
+  feedbackText String?   @db.Text
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now()) @updatedAt
+
+  aiLog AiLog @relation(fields: [aiLogId], references: [id], onDelete: Cascade)
+
+  @@unique([aiLogId, adminUserId])
+  @@index([aiLogId])
 }

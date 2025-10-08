@@ -1,36 +1,42 @@
+import { json } from "@remix-run/node";
 import { Link, Outlet, useLoaderData, useRouteError } from "@remix-run/react";
 import { boundary } from "@shopify/shopify-app-remix/server";
 import { AppProvider } from "@shopify/shopify-app-remix/react";
 import { NavMenu } from "@shopify/app-bridge-react";
 import polarisStyles from "@shopify/polaris/build/esm/styles.css?url";
 import { authenticate } from "../shopify.server";
+import prisma from "../db.server";
 
 export const links = () => [{ rel: "stylesheet", href: polarisStyles }];
 
 export const loader = async ({ request }) => {
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
+  const { shop } = session;
 
-  return { apiKey: process.env.SHOPIFY_API_KEY || "" };
+  const aiSettings = await prisma.aiSetting.findUnique({
+    where: { shop },
+    select: { aiEnabled: true },
+  });
+
+  return json({ 
+    apiKey: process.env.SHOPIFY_API_KEY || "",
+    aiSettings: aiSettings || { aiEnabled: false },
+  });
 };
 
 export default function App() {
-  const { apiKey } = useLoaderData();
+  const { apiKey, aiSettings } = useLoaderData();
 
   return (
     <AppProvider isEmbeddedApp apiKey={apiKey}>
       <NavMenu>
-        <Link to="/app" rel="home">
-          Questions Dashboard
-        </Link>
-        <Link to="/app/questions-list">
-          Questions & Answers
-        </Link>
-        <Link to="/app/import-export">
-          Import/Export
-        </Link>
-        <Link to="/app/settings">
-          Settings
-        </Link>
+        <Link to="/app" rel="home">Dashboard</Link>
+        <Link to="/app/questions-list">Questions & Answers</Link>
+        {aiSettings?.aiEnabled && (
+          <Link to="/app/ai-logs">AI Logs</Link>
+        )}
+        <Link to="/app/import-export">Import/Export</Link>
+        <Link to="/app/settings">Settings</Link>
       </NavMenu>
       <Outlet />
     </AppProvider>

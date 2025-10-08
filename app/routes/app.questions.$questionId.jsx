@@ -45,14 +45,14 @@ export const loader = async ({ request, params }) => {
     return redirect("/app");
   }
 
-  const question = await prisma.question.findUnique({
-    where: { id: questionId, shop: shop },
-    include: { answers: { orderBy: { createdAt: "asc" } } },
-  });
-
-  const emailSettings = await prisma.emailSetting.findUnique({
-    where: { shop },
-  });
+  const [question, emailSettings, aiSettings] = await Promise.all([
+    prisma.question.findUnique({
+      where: { id: questionId, shop: shop },
+      include: { answers: { orderBy: { createdAt: "asc" } } },
+    }),
+    prisma.emailSetting.findUnique({ where: { shop } }),
+    prisma.aiSetting.findUnique({ where: { shop } }),
+  ]);
 
   if (!question) {
     throw new Response("Question not found", { status: 404 });
@@ -86,7 +86,13 @@ export const loader = async ({ request, params }) => {
     }
   }
 
-  return json({ question, productDetails, shop, emailSettings: emailSettings || {} });
+  return json({ 
+    question, 
+    productDetails, 
+    shop, 
+    emailSettings: emailSettings || {}, 
+    aiSettings: aiSettings || {}
+  });
 };
 
 // Action to handle updating the question or managing answers
@@ -278,7 +284,7 @@ export const action = async ({ request, params }) => {
 
 // The Question View/Edit Page Component
 export default function ViewQuestionPage() {
-  const { question, productDetails, shop, emailSettings } = useLoaderData();
+  const { question, productDetails, shop, emailSettings, aiSettings } = useLoaderData();
   const actionData = useActionData();
   const submit = useSubmit();
   const navigate = useNavigate();
@@ -295,10 +301,45 @@ export default function ViewQuestionPage() {
   const [answerEmail, setAnswerEmail] = useState("admin@store.com");
   const [answerPublished, setAnswerPublished] = useState(true);
   const [notifyUser, setNotifyUser] = useState(true);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Banner state
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [showErrorBanner, setShowErrorBanner] = useState(false);
+
+  const handleGenerateAnswer = async () => {
+    setIsGenerating(true);
+    try {
+      const response = await fetch('/api/ai-answer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customerQuestion: question.question,
+          productId: question.productId,
+          questionId: question.id,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate answer');
+      }
+
+      const data = await response.json();
+      if (data.answer) {
+        setAnswerText(data.answer);
+      }
+      if (data.error) {
+        // You could show a toast or banner here
+        console.error(data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching AI answer:', error);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const openNewAnswerModal = useCallback(() => {
     setEditingAnswer(null);
@@ -519,6 +560,16 @@ export default function ViewQuestionPage() {
               maxLength={CHARACTER_LIMIT}
               showCharacterCount
             />
+            {aiSettings?.aiEnabled && (
+              <InlineStack align="end">
+                <Button
+                  onClick={handleGenerateAnswer}
+                  loading={isGenerating}
+                >
+                  Generate with AI
+                </Button>
+              </InlineStack>
+            )}
             <TextField label="Author Name" value={answerAuthor} onChange={setAnswerAuthor} autoComplete="off" />
             <TextField label="Author Email" value={answerEmail} onChange={setAnswerEmail} type="email" autoComplete="off" />
             <Select label="Status" options={publishedOptions} onChange={(value) => setAnswerPublished(value === "true")} value={answerPublished ? "true" : "false"} />
