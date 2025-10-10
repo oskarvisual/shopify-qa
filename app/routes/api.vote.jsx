@@ -28,7 +28,16 @@ export const loader = async ({ request }) => {
       },
     });
 
-    const response = json({ hasVoted: !!existingVote });
+    // Also get the current vote count for the question
+    const question = await prisma.question.findUnique({
+      where: { id: questionId },
+      select: { votes: true },
+    });
+
+    const response = json({
+      hasVoted: !!existingVote,
+      votes: question?.votes || 0
+    });
     return cors(request, response);
   } catch (error) {
     console.error("Error checking vote status:", error);

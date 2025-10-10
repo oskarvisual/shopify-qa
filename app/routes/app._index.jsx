@@ -16,6 +16,9 @@ import {
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { PlanFeature, planHasFeature } from "../lib/plans";
+import { getSubscriptionPlanContext } from "../lib/plans.server";
+import { usePlanFeature } from "../lib/plan-context";
 
 function formatMilliseconds(ms) {
   if (ms < 0) ms = 0;
@@ -32,46 +35,80 @@ function formatMilliseconds(ms) {
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
-  const { shop } = session;
+  const { shop, subscriptionPlan } = session;
+  const planContext = await getSubscriptionPlanContext({ shop, sessionPlan: subscriptionPlan });
+  const includeAdvancedMetrics = planHasFeature(planContext.features, PlanFeature.DASHBOARD_ENHANCED);
+  const includeAiMetrics = planHasFeature(planContext.features, PlanFeature.DASHBOARD_AI_METRICS);
 
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const [publishedQuestionCount, pendingQuestionCount, totalAnswerCount, recentQuestionsActivity, recentAnswersActivity, latestQuestions, topProductsByQuestions, topProductsByVotes, topCategories, topProductTypes, totalQuestions, unansweredQuestionsCount, answeredQuestions, activeAdmins, allQuestionsWithTags, voteLogs, topQuestionsByVotesList, latestPositiveAi, latestUnansweredAi, latestUnanswered] = await Promise.all([
+  const [publishedQuestionCount, pendingQuestionCount, totalAnswerCount, recentQuestionsActivity, recentAnswersActivity, totalQuestions, unansweredQuestionsCount, allQuestionsWithTags, voteLogs, answeredQuestions] = await Promise.all([
     prisma.question.count({ where: { shop, isPublished: true } }),
     prisma.question.count({ where: { shop, isPublished: false } }),
     prisma.answer.count({ where: { question: { shop } } }),
     prisma.question.findMany({ where: { shop, createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true } }),
     prisma.answer.findMany({ where: { question: { shop }, createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true } }),
-    prisma.question.findMany({ where: { shop }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, question: true, createdAt: true } }),
-    prisma.question.groupBy({ by: ["productId"], where: { shop }, _count: { productId: true }, orderBy: { _count: { productId: "desc" } }, take: 5 }),
-    prisma.question.groupBy({ by: ["productId"], where: { shop }, _sum: { votes: true }, orderBy: { _sum: { votes: "desc" } }, take: 5 }),
-    prisma.question.groupBy({ by: ["productCategory"], where: { shop, productCategory: { not: null } }, _count: { productCategory: true }, orderBy: { _count: { productCategory: "desc" } }, take: 5 }),
-    prisma.question.groupBy({ by: ["productType"], where: { shop, productType: { not: null } }, _count: { productType: true }, orderBy: { _count: { productType: "desc" } }, take: 5 }),
     prisma.question.count({ where: { shop } }),
     prisma.question.count({ where: { shop, answers: { none: {} } } }),
-    prisma.question.findMany({ where: { shop, answers: { some: {} } }, include: { answers: { orderBy: { createdAt: 'asc' }, take: 1 } } }),
-    prisma.answer.groupBy({ by: ['authorEmail'], where: { question: { shop: shop }, authorEmail: { not: null } }, _count: { authorEmail: true }, orderBy: { _count: { authorEmail: 'desc' } }, take: 5 }),
     prisma.question.findMany({ where: { shop, AND: [{ productTags: { not: null } }, { productTags: { not: '' } }] }, select: { productTags: true } }),
     prisma.voteLog.findMany({ where: { shop, createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true } }),
-    prisma.question.findMany({ where: { shop }, orderBy: { votes: 'desc' }, take: 5, select: { id: true, question: true, votes: true } }),
-    prisma.aiLog.findMany({ where: { shop, vote: 1 }, orderBy: { createdAt: 'desc' }, take: 5 }),
-    prisma.aiLog.findMany({ where: { shop, noAnswer: true }, orderBy: { createdAt: 'desc' }, take: 5 }),
-    prisma.question.findMany({ where: { shop, answers: { none: {} } }, orderBy: { createdAt: 'desc' }, take: 5, select: { id: true, question: true, createdAt: true } })
+    prisma.question.findMany({ where: { shop, answers: { some: {} } }, include: { answers: { orderBy: { createdAt: 'asc' }, take: 1 } } }),
   ]);
 
-  const productIds = [...new Set([
-    ...topProductsByQuestions.map(p => p.productId),
-    ...topProductsByVotes.map(p => p.productId),
-    ...latestPositiveAi.map(log => log.productId),
-    ...latestUnansweredAi.map(log => log.productId)
-  ])];
+  let latestQuestions = [];
+  let topProductsByQuestions = [];
+  let topProductsByVotes = [];
+  let topCategories = [];
+  let topProductTypes = [];
+  let activeAdmins = [];
+  let topQuestionsByVotesList = [];
+  let latestUnanswered = [];
+
+  if (includeAdvancedMetrics) {
+    [latestQuestions, topProductsByQuestions, topProductsByVotes, topCategories, topProductTypes, activeAdmins, topQuestionsByVotesList, latestUnanswered] = await Promise.all([
+      prisma.question.findMany({ where: { shop }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, question: true, createdAt: true } }),
+      prisma.question.groupBy({ by: ["productId"], where: { shop }, _count: { productId: true }, orderBy: { _count: { productId: "desc" } }, take: 5 }),
+      prisma.question.groupBy({ by: ["productId"], where: { shop }, _sum: { votes: true }, orderBy: { _sum: { votes: "desc" } }, take: 5 }),
+      prisma.question.groupBy({ by: ["productCategory"], where: { shop, productCategory: { not: null } }, _count: { productCategory: true }, orderBy: { _count: { productCategory: "desc" } }, take: 5 }),
+      prisma.question.groupBy({ by: ["productType"], where: { shop, productType: { not: null } }, _count: { productType: true }, orderBy: { _count: { productType: "desc" } }, take: 5 }),
+      prisma.answer.groupBy({ by: ['authorEmail'], where: { question: { shop: shop }, authorEmail: { not: null } }, _count: { authorEmail: true }, orderBy: { _count: { authorEmail: 'desc' } }, take: 5 }),
+      prisma.question.findMany({ where: { shop }, orderBy: { votes: 'desc' }, take: 5, select: { id: true, question: true, votes: true } }),
+      prisma.question.findMany({ where: { shop, answers: { none: {} } }, orderBy: { createdAt: 'desc' }, take: 5, select: { id: true, question: true, createdAt: true } }),
+    ]);
+  }
+
+  let latestPositiveAi = [];
+  let latestUnansweredAi = [];
+  let aiLogsActivity = [];
+
+  if (includeAiMetrics) {
+    const [positive, unanswered, activity] = await Promise.all([
+      prisma.aiLog.findMany({ where: { shop, vote: 1 }, orderBy: { createdAt: 'desc' }, take: 5 }),
+      prisma.aiLog.findMany({ where: { shop, noAnswer: true }, orderBy: { createdAt: 'desc' }, take: 5 }),
+      prisma.aiLog.findMany({ where: { shop, createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true, vote: true, noAnswer: true, askedHuman: true } }),
+    ]);
+
+    latestPositiveAi = positive;
+    latestUnansweredAi = unanswered;
+    aiLogsActivity = activity;
+  }
+
   const productMap = {};
-  if (productIds.length > 0) {
-    const gqlProductIds = productIds.map(id => `gid://shopify/Product/${id}`);
-    const productResponse = await admin.graphql(`query getProducts($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title } } }`, { variables: { ids: gqlProductIds } });
-    const { data } = await productResponse.json();
-    data.nodes?.forEach(product => { if (product) { const numericId = product.id.replace('gid://shopify/Product/', ''); productMap[numericId] = product.title; } });
+  if (includeAdvancedMetrics || includeAiMetrics) {
+    const productIds = [...new Set([
+      ...topProductsByQuestions.map(p => p.productId),
+      ...topProductsByVotes.map(p => p.productId),
+      ...latestPositiveAi.map(log => log.productId),
+      ...latestUnansweredAi.map(log => log.productId)
+    ])];
+
+    if (productIds.length > 0) {
+      const gqlProductIds = productIds.map(id => `gid://shopify/Product/${id}`);
+      const productResponse = await admin.graphql(`query getProducts($ids: [ID!]!) { nodes(ids: $ids) { ... on Product { id title } } }`, { variables: { ids: gqlProductIds } });
+      const { data } = await productResponse.json();
+      data.nodes?.forEach(product => { if (product) { const numericId = product.id.replace('gid://shopify/Product/', ''); productMap[numericId] = product.title; } });
+    }
   }
 
   const unansweredRatio = totalQuestions > 0 ? (unansweredQuestionsCount / totalQuestions) * 100 : 0;
@@ -102,22 +139,33 @@ export const loader = async ({ request }) => {
   }).reverse();
   voteLogs.forEach(v => { const entry = votesByDay.find(d => d.date === v.createdAt.toISOString().split('T')[0]); if (entry) entry.votes++; });
 
-  const aiLogsActivity = await prisma.aiLog.findMany({ where: { shop, createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true, vote: true, noAnswer: true, askedHuman: true } });
-  const aiActivityChartData = Array.from({ length: 30 }, (_, i) => {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    const dateStr = date.toISOString().split('T')[0];
-    return { date: dateStr, day: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), aiQuestions: 0, customerVotes: 0, successfulAnswers: 0, escalatedToHuman: 0 };
-  }).reverse();
-  aiLogsActivity.forEach(log => {
-    const entry = aiActivityChartData.find(d => d.date === log.createdAt.toISOString().split('T')[0]);
-    if (entry) {
-      entry.aiQuestions++;
-      if (log.vote !== null) entry.customerVotes++;
-      if (!log.noAnswer) entry.successfulAnswers++;
-      if (log.askedHuman) entry.escalatedToHuman++;
-    }
-  });
+  const aiActivityChartData = includeAiMetrics
+    ? Array.from({ length: 30 }, (_, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        return {
+          date: dateStr,
+          day: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          aiQuestions: 0,
+          customerVotes: 0,
+          successfulAnswers: 0,
+          escalatedToHuman: 0,
+        };
+      }).reverse()
+    : [];
+
+  if (includeAiMetrics) {
+    aiLogsActivity.forEach(log => {
+      const entry = aiActivityChartData.find(d => d.date === log.createdAt.toISOString().split('T')[0]);
+      if (entry) {
+        entry.aiQuestions++;
+        if (log.vote !== null) entry.customerVotes++;
+        if (!log.noAnswer) entry.successfulAnswers++;
+        if (log.askedHuman) entry.escalatedToHuman++;
+      }
+    });
+  }
 
   return json({
     shop,
@@ -144,6 +192,8 @@ export default function DashboardPage() {
   const { shop, stats, activityChartData, latestQuestions, topProductsByQuestions, topProductsByVotes, topCategories, topProductTypes, activeAdmins, latestUnanswered, tagDistribution, votesByDay, topQuestionsByVotes: topQuestionsByVotesList, latestPositiveAi, latestUnansweredAi, productMap, aiActivityChartData } = useLoaderData();
   const navigate = useNavigate();
   const [modalContent, setModalContent] = useState(null);
+  const showAdvancedMetrics = usePlanFeature(PlanFeature.DASHBOARD_ENHANCED);
+  const showAiMetrics = usePlanFeature(PlanFeature.DASHBOARD_AI_METRICS);
 
   const tableCellWrapper = (content) => (
     <div style={{ maxWidth: '250px', whiteSpace: 'normal', wordWrap: 'break-word' }}>
@@ -152,6 +202,7 @@ export default function DashboardPage() {
   );
 
   const openAiModal = (log) => {
+    if (!showAiMetrics) return;
     const product = productMap[log.productId];
     setModalContent(
       <Modal.Section>
@@ -196,8 +247,8 @@ export default function DashboardPage() {
   const topProductTypesRows = topProductTypes.map(t => [tableCellWrapper(<Link to={`/app/questions-list?type=${encodeURIComponent(t.productType)}`}>{t.productType}</Link>), t._count.productType]);
   const activeAdminsRows = activeAdmins.map(a => [tableCellWrapper(a.authorEmail), a._count.authorEmail]);
   const topQuestionsByVotesRows = topQuestionsByVotesList.map(q => [tableCellWrapper(<Link to={`/app/questions/${q.id}`}>{q.question}</Link>), q.votes]);
-  const latestPositiveAiRows = latestPositiveAi.map(log => [tableCellWrapper(<PolarisLink onClick={() => openAiModal(log)}>{log.customerQuestion}</PolarisLink>), new Date(log.createdAt).toLocaleDateString()]);
-  const latestUnansweredAiRows = latestUnansweredAi.map(log => [tableCellWrapper(<PolarisLink onClick={() => openAiModal(log)}>{log.customerQuestion}</PolarisLink>), new Date(log.createdAt).toLocaleDateString()]);
+  const latestPositiveAiRows = showAiMetrics ? latestPositiveAi.map(log => [tableCellWrapper(<PolarisLink onClick={() => openAiModal(log)}>{log.customerQuestion}</PolarisLink>), new Date(log.createdAt).toLocaleDateString()]) : [];
+  const latestUnansweredAiRows = showAiMetrics ? latestUnansweredAi.map(log => [tableCellWrapper(<PolarisLink onClick={() => openAiModal(log)}>{log.customerQuestion}</PolarisLink>), new Date(log.createdAt).toLocaleDateString()]) : [];
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF', '#FF4560'];
 
@@ -231,44 +282,48 @@ export default function DashboardPage() {
           </Card>
         </Layout.Section>
 
-        <Layout.Section>
-          <Card>
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">AI Activity (Last 30 Days)</Text>
-              <div style={{ height: '300px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={aiActivityChartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="day" tick={{ fontSize: 12 }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="aiQuestions" stroke="#8884d8" name="AI Questions" />
-                    <Line type="monotone" dataKey="successfulAnswers" stroke="#82ca9d" name="Successful Answers" />
-                    <Line type="monotone" dataKey="customerVotes" stroke="#ffc658" name="Customer Votes" />
-                    <Line type="monotone" dataKey="escalatedToHuman" stroke="#ff8042" name="Escalated to Human" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </BlockStack>
-          </Card>
-        </Layout.Section>
+        {showAiMetrics && (
+          <Layout.Section>
+            <Card>
+              <BlockStack gap="400">
+                <Text as="h2" variant="headingMd">AI Activity (Last 30 Days)</Text>
+                <div style={{ height: '300px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={aiActivityChartData} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="day" tick={{ fontSize: 12 }} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                      <Tooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="aiQuestions" stroke="#8884d8" name="AI Questions" />
+                      <Line type="monotone" dataKey="successfulAnswers" stroke="#82ca9d" name="Successful Answers" />
+                      <Line type="monotone" dataKey="customerVotes" stroke="#ffc658" name="Customer Votes" />
+                      <Line type="monotone" dataKey="escalatedToHuman" stroke="#ff8042" name="Escalated to Human" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </BlockStack>
+            </Card>
+          </Layout.Section>
+        )}
 
-        <Layout.Section>
-          <Card>
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingMd">Votes per Day (Last 30 Days)</Text>
-              <div style={{ height: '300px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={votesByDay} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="day" tick={{ fontSize: 12 }} /><YAxis allowDecimals={false} tick={{ fontSize: 12 }} /><Tooltip /><Legend />
-                    <Line type="monotone" dataKey="votes" stroke="#FF8042" name="Votes" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </BlockStack>
-          </Card>
-        </Layout.Section>
+        {showAdvancedMetrics && (
+          <Layout.Section>
+            <Card>
+              <BlockStack gap="400">
+                <Text as="h2" variant="headingMd">Votes per Day (Last 30 Days)</Text>
+                <div style={{ height: '300px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={votesByDay} margin={{ top: 5, right: 30, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="day" tick={{ fontSize: 12 }} /><YAxis allowDecimals={false} tick={{ fontSize: 12 }} /><Tooltip /><Legend />
+                      <Line type="monotone" dataKey="votes" stroke="#FF8042" name="Votes" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </BlockStack>
+            </Card>
+          </Layout.Section>
+        )}
 
         <Layout.Section>
           <Card>
@@ -286,24 +341,28 @@ export default function DashboardPage() {
           </Card>
         </Layout.Section>
 
-        <Layout.Section>
-          <Grid columns={{ xs: 1, sm: 2, md: 2, lg: 2, xl: 2 }} gap="400">
-            <Card><BlockStack gap="400"><Text as="h2" variant="headingMd">Latest Positively Voted AI Questions</Text><DataTable columnContentTypes={['text', 'text']} headings={['Question', 'Date']} rows={latestPositiveAiRows} /></BlockStack></Card>
-            <Card><BlockStack gap="400"><Text as="h2" variant="headingMd">Latest Unanswered AI Questions</Text><DataTable columnContentTypes={['text', 'text']} headings={['Question', 'Date']} rows={latestUnansweredAiRows} /></BlockStack></Card>
-          </Grid>
-        </Layout.Section>
+        {showAiMetrics && (
+          <Layout.Section>
+            <Grid columns={{ xs: 1, sm: 2, md: 2, lg: 2, xl: 2 }} gap="400">
+              <Card><BlockStack gap="400"><Text as="h2" variant="headingMd">Latest Positively Voted AI Questions</Text><DataTable columnContentTypes={['text', 'text']} headings={['Question', 'Date']} rows={latestPositiveAiRows} /></BlockStack></Card>
+              <Card><BlockStack gap="400"><Text as="h2" variant="headingMd">Latest Unanswered AI Questions</Text><DataTable columnContentTypes={['text', 'text']} headings={['Question', 'Date']} rows={latestUnansweredAiRows} /></BlockStack></Card>
+            </Grid>
+          </Layout.Section>
+        )}
 
-        <Layout.Section>
-          <Grid columns={{ xs: 1, sm: 2, md: 2, lg: 2, xl: 2 }} gap="400">
-            <Card><BlockStack gap="400"><Text as="h2" variant="headingMd">Latest Unanswered Questions</Text><DataTable columnContentTypes={['text', 'text']} headings={['Question', 'Date']} rows={latestUnansweredRows} /></BlockStack></Card>
-            <Card><BlockStack gap="400"><Text as="h2" variant="headingMd">Most Active Admins</Text><DataTable columnContentTypes={['text', 'numeric']} headings={['Admin Email', 'Answers']} rows={activeAdminsRows} /></BlockStack></Card>
-            <Card><BlockStack gap="400"><Text as="h2" variant="headingMd">Top Questions by Votes</Text><DataTable columnContentTypes={['text', 'numeric']} headings={['Question', 'Votes']} rows={topQuestionsByVotesRows} /></BlockStack></Card>
-            <Card><BlockStack gap="400"><Text as="h2" variant="headingMd">Top Products by Questions</Text><DataTable columnContentTypes={['text', 'numeric']} headings={['Product', 'Questions']} rows={topProductsByQuestionsRows} /></BlockStack></Card>
-            <Card><BlockStack gap="400"><Text as="h2" variant="headingMd">Top Products by Votes</Text><DataTable columnContentTypes={['text', 'numeric']} headings={['Product', 'Votes']} rows={topProductsByVotesRows} /></BlockStack></Card>
-            <Card><BlockStack gap="400"><Text as="h2" variant="headingMd">Top Categories</Text><DataTable columnContentTypes={['text', 'numeric']} headings={['Category', 'Count']} rows={topCategoriesRows} /></BlockStack></Card>
-            <Card><BlockStack gap="400"><Text as="h2" variant="headingMd">Top Product Types</Text><DataTable columnContentTypes={['text', 'numeric']} headings={['Product Type', 'Count']} rows={topProductTypesRows} /></BlockStack></Card>
-          </Grid>
-        </Layout.Section>
+        {showAdvancedMetrics && (
+          <Layout.Section>
+            <Grid columns={{ xs: 1, sm: 2, md: 2, lg: 2, xl: 2 }} gap="400">
+              <Card><BlockStack gap="400"><Text as="h2" variant="headingMd">Latest Unanswered Questions</Text><DataTable columnContentTypes={['text', 'text']} headings={['Question', 'Date']} rows={latestUnansweredRows} /></BlockStack></Card>
+              <Card><BlockStack gap="400"><Text as="h2" variant="headingMd">Most Active Admins</Text><DataTable columnContentTypes={['text', 'numeric']} headings={['Admin Email', 'Answers']} rows={activeAdminsRows} /></BlockStack></Card>
+              <Card><BlockStack gap="400"><Text as="h2" variant="headingMd">Top Questions by Votes</Text><DataTable columnContentTypes={['text', 'numeric']} headings={['Question', 'Votes']} rows={topQuestionsByVotesRows} /></BlockStack></Card>
+              <Card><BlockStack gap="400"><Text as="h2" variant="headingMd">Top Products by Questions</Text><DataTable columnContentTypes={['text', 'numeric']} headings={['Product', 'Questions']} rows={topProductsByQuestionsRows} /></BlockStack></Card>
+              <Card><BlockStack gap="400"><Text as="h2" variant="headingMd">Top Products by Votes</Text><DataTable columnContentTypes={['text', 'numeric']} headings={['Product', 'Votes']} rows={topProductsByVotesRows} /></BlockStack></Card>
+              <Card><BlockStack gap="400"><Text as="h2" variant="headingMd">Top Categories</Text><DataTable columnContentTypes={['text', 'numeric']} headings={['Category', 'Count']} rows={topCategoriesRows} /></BlockStack></Card>
+              <Card><BlockStack gap="400"><Text as="h2" variant="headingMd">Top Product Types</Text><DataTable columnContentTypes={['text', 'numeric']} headings={['Product Type', 'Count']} rows={topProductTypesRows} /></BlockStack></Card>
+            </Grid>
+          </Layout.Section>
+        )}
       </Layout>
     </Page>
   );

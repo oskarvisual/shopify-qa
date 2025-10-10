@@ -2,6 +2,8 @@ import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { generateAnswer } from "../lib/ai.server.js";
+import { PlanFeature, planHasFeature } from "../lib/plans";
+import { getSubscriptionPlanContext } from "../lib/plans.server";
 
 const GET_PRODUCT_DETAILS_QUERY = `
   query getProduct($id: ID!) {
@@ -9,13 +11,25 @@ const GET_PRODUCT_DETAILS_QUERY = `
       id
       title
       descriptionHtml
+      options(first: 5) {
+        name
+        values
+      }
+      variants(first: 20) {
+        nodes {
+          title
+          availableForSale
+        }
+      }
     }
   }
 `;
 
 export async function action({ request }) {
   const { session, admin } = await authenticate.admin(request);
-  const { shop } = session;
+  const { shop, subscriptionPlan } = session;
+  const planContext = await getSubscriptionPlanContext({ shop, sessionPlan: subscriptionPlan });
+  const aiEnabledForPlan = planHasFeature(planContext.features, PlanFeature.ADMIN_AI);
 
   const { customerQuestion, productId, questionId } = await request.json();
 
@@ -27,8 +41,16 @@ export async function action({ request }) {
     // 1. Fetch AI Settings from DB
     const aiSettings = await prisma.aiSetting.findUnique({ where: { shop } });
 
-    if (!aiSettings?.aiEnabled) {
+    if (!aiEnabledForPlan || !aiSettings?.aiEnabled) {
       return json({ answer: "AI-powered answers are currently disabled by the administrator." });
+    }
+
+    const startOfDay = new Date();
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const aiUsageToday = await prisma.aiLog.count({ where: { shop, createdAt: { gte: startOfDay } } });
+
+    if (aiUsageToday >= planContext.aiDailyLimit) {
+      return json({ answer: "The daily AI answer limit has been reached. Please try again tomorrow." });
     }
 
     // 2. Fetch other Q&As for this product for context
@@ -63,6 +85,8 @@ export async function action({ request }) {
     const product = {
         title: productData.data?.product?.title,
         description: productData.data?.product?.descriptionHtml.replace(/<[^>]*>?/gm, '\n').trim(),
+        options: productData.data?.product?.options || [],
+        variants: productData.data?.product?.variants?.nodes || [],
     };
 
     // 4. Prepare the context object
@@ -74,7 +98,7 @@ export async function action({ request }) {
     };
 
     // 5. Generate the answer
-    const answer = await generateAnswer(context);
+    const { answer, fullContext } = await generateAnswer(context);
 
     return json({ answer });
   } catch (error) {

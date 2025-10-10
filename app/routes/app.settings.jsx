@@ -21,10 +21,15 @@ import {
 } from "@shopify/polaris";
 import { QuestionCircleIcon, ChevronDownIcon, ChevronUpIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
+import { usePlan, usePlanFeature } from "../lib/plan-context";
+import { PlanFeature, SubscriptionPlan, getBillingButtonLabel, getBillingPlan, isAtLeastPlan, planHasFeature } from "../lib/plans";
+import { getSubscriptionPlanContext } from "../lib/plans.server";
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
-  const { shop } = session;
+  const { shop, subscriptionPlan } = session;
+  const planContext = await getSubscriptionPlanContext({ shop, sessionPlan: subscriptionPlan });
+  const planFeatures = planContext.features;
 
   const [webhookSettings, emailSettings, aiSettings, helpConfigs, translationConfig] = await Promise.all([
     prisma.webhookSetting.findUnique({ where: { shop } }),
@@ -61,18 +66,58 @@ export const loader = async ({ request }) => {
     }
   }
 
+  const webhookSettingsData = { ...(webhookSettings || {}) };
+  const emailSettingsData = { ...(emailSettings || {}) };
+  const aiSettingsData = { ...(aiSettings || {}) };
+
+  if (!planHasFeature(planFeatures, PlanFeature.SETTINGS_WEBHOOKS)) {
+    Object.assign(webhookSettingsData, {
+      url: null,
+      newQuestion: false,
+      editQuestion: false,
+      deleteQuestion: false,
+      newAnswer: false,
+      editAnswer: false,
+      deleteAnswer: false,
+      approveQuestion: false,
+      newVote: false,
+    });
+  }
+
+  if (!planHasFeature(planFeatures, PlanFeature.SETTINGS_EMAIL_SMTP)) {
+    Object.assign(emailSettingsData, {
+      smtpProvider: "APP",
+      smtpHost: null,
+      smtpPort: null,
+      smtpUser: null,
+      smtpPass: null,
+      smtpSecure: true,
+    });
+  }
+
+  if (!planHasFeature(planFeatures, PlanFeature.SETTINGS_AI)) {
+    Object.assign(aiSettingsData, {
+      aiEnabled: false,
+      aiFrontendEnabled: false,
+      aiInstructions: null,
+    });
+  }
+
   return json({
-    webhookSettings: webhookSettings || {},
-    emailSettings: emailSettings || {},
-    aiSettings: aiSettings || {},
+    webhookSettings: webhookSettingsData,
+    emailSettings: emailSettingsData,
+    aiSettings: aiSettingsData,
     helpLinks,
     translationSettings,
+    planFeatures,
   });
 };
 
 export const action = async ({ request }) => {
   const { session } = await authenticate.admin(request);
-  const { shop } = session;
+  const { shop, subscriptionPlan } = session;
+  const planContext = await getSubscriptionPlanContext({ shop, sessionPlan: subscriptionPlan });
+  const planFeatures = planContext.features;
   const formData = await request.formData();
   const intent = formData.get("intent");
 
@@ -116,6 +161,7 @@ export const action = async ({ request }) => {
       aiEnabled: formData.get("aiEnabled") === "true",
       aiLanguage: formData.get("aiLanguage") || "English",
       aiInstructions: formData.get("aiInstructions") || null,
+      aiFrontendEnabled: formData.get("aiFrontendEnabled") === "true",
     };
 
     const translationDataRaw = {
@@ -148,6 +194,45 @@ export const action = async ({ request }) => {
         .map(([key, value]) => [key, typeof value === "string" ? value.trim() : ""])
         .filter(([, value]) => value !== "")
     );
+
+    if (!planHasFeature(planFeatures, PlanFeature.SETTINGS_WEBHOOKS)) {
+      Object.assign(webhookData, {
+        url: null,
+        newQuestion: false,
+        editQuestion: false,
+        deleteQuestion: false,
+        newAnswer: false,
+        editAnswer: false,
+        deleteAnswer: false,
+        approveQuestion: false,
+        newVote: false,
+      });
+    }
+
+    if (!planHasFeature(planFeatures, PlanFeature.SETTINGS_EMAIL_SMTP)) {
+      Object.assign(emailData, {
+        smtpProvider: "APP",
+        smtpHost: null,
+        smtpPort: 0,
+        smtpUser: null,
+        smtpPass: null,
+        smtpSecure: true,
+      });
+    }
+
+    if (!planHasFeature(planFeatures, PlanFeature.SETTINGS_AI)) {
+      Object.assign(aiData, {
+        aiEnabled: false,
+        aiFrontendEnabled: false,
+        aiInstructions: null,
+      });
+
+      Object.keys(translationData).forEach((key) => {
+        if (key.startsWith("ai")) {
+          delete translationData[key];
+        }
+      });
+    }
 
     await Promise.all([
       prisma.webhookSetting.upsert({
@@ -182,7 +267,14 @@ export const action = async ({ request }) => {
 export default function SettingsPage() {
   const { webhookSettings, emailSettings, aiSettings, helpLinks, translationSettings } = useLoaderData();
   const actionData = useActionData();
-  const fetcher = useFetcher();
+  const emailTestFetcher = useFetcher();
+  const billingFetcher = useFetcher();
+  const plan = usePlan();
+  const isFreePlan = plan === SubscriptionPlan.FREE;
+  const canConfigureWebhooks = usePlanFeature(PlanFeature.SETTINGS_WEBHOOKS);
+  const canConfigureAi = usePlanFeature(PlanFeature.SETTINGS_AI);
+  const canUseCustomEmail = usePlanFeature(PlanFeature.SETTINGS_EMAIL_SMTP);
+  const canEditTranslations = usePlanFeature(PlanFeature.SETTINGS_TRANSLATIONS);
 
   const [formState, setFormState] = useState({
     ...webhookSettings,
@@ -190,6 +282,7 @@ export default function SettingsPage() {
     ...aiSettings,
     autoApproveQuestions: emailSettings?.autoApproveQuestions || false,
     aiEnabled: aiSettings?.aiEnabled || false,
+    aiFrontendEnabled: aiSettings?.aiFrontendEnabled || false,
     translationSubmittingText: translationSettings?.formSubmittingText || "",
     translationSuccessMessage: translationSettings?.formSuccessMessage || "",
     translationErrorMessage: translationSettings?.formErrorMessage || "",
@@ -230,14 +323,93 @@ export default function SettingsPage() {
     { label: "Full (Saturday, January 1, 2025)", value: "full" },
   ];
 
+  const handleUpgrade = useCallback(
+    (targetPlan) => {
+      const billingPlan = getBillingPlan(targetPlan);
+      if (!billingPlan) return;
+      billingFetcher.submit({ plan: targetPlan }, { method: "post", action: "/app/billing" });
+    },
+    [billingFetcher]
+  );
+
+  const renderUpgradeBanner = (message, targetPlans) => {
+    const plansToShow = targetPlans.filter((target) => !isAtLeastPlan(plan, target));
+    if (plansToShow.length === 0) {
+      return (
+        <Banner tone="warning" title="Upgrade required">
+          <Text as="p">{message}</Text>
+        </Banner>
+      );
+    }
+
+    return (
+      <Banner tone="warning" title="Upgrade required">
+        <BlockStack gap="200">
+          <Text as="p">{message}</Text>
+          <InlineStack gap="200">
+            {plansToShow.map((targetPlan) => {
+              const billingPlan = getBillingPlan(targetPlan);
+              if (!billingPlan) return null;
+              const label = getBillingButtonLabel(targetPlan) || `Upgrade to ${billingPlan.shortName}`;
+              const isProcessing = billingFetcher.state === "submitting" && billingFetcher.formData?.get("plan") === targetPlan;
+              return (
+                <Button
+                  key={targetPlan}
+                  variant="primary"
+                  onClick={() => handleUpgrade(targetPlan)}
+                  loading={isProcessing}
+                  disabled={isProcessing}
+                >
+                  {label}
+                </Button>
+              );
+            })}
+          </InlineStack>
+        </BlockStack>
+      </Banner>
+    );
+  };
+
+  useEffect(() => {
+    if (!canUseCustomEmail) {
+      setFormState((prev) => ({
+        ...prev,
+        smtpProvider: "APP",
+        smtpHost: "",
+        smtpPort: "",
+        smtpUser: "",
+        smtpPass: "",
+        smtpSecure: true,
+      }));
+    }
+  }, [canUseCustomEmail]);
+
+  useEffect(() => {
+    if (!canConfigureAi) {
+      setFormState((prev) => ({
+        ...prev,
+        aiEnabled: false,
+        aiFrontendEnabled: false,
+        aiInstructions: "",
+        aiLanguage: prev.aiLanguage || "English",
+      }));
+    }
+  }, [canConfigureAi]);
+
+  useEffect(() => {
+    if (!formState.aiEnabled && formState.aiFrontendEnabled) {
+      setFormState((prev) => ({ ...prev, aiFrontendEnabled: false }));
+    }
+  }, [formState.aiEnabled, formState.aiFrontendEnabled]);
+
   useEffect(() => {
     if (actionData?.success) setShowSuccessBanner(true);
     if (actionData?.error) setShowErrorBanner(true);
   }, [actionData]);
 
   useEffect(() => {
-    if (fetcher.data) setShowTestBanner(true);
-  }, [fetcher.data]);
+    if (emailTestFetcher.data) setShowTestBanner(true);
+  }, [emailTestFetcher.data]);
 
   const handleFormChange = useCallback((key) => (value) => {
     setFormState((prev) => ({ ...prev, [key]: value }));
@@ -254,8 +426,8 @@ export default function SettingsPage() {
     formData.append("smtpUser", formState.smtpUser || "");
     formData.append("smtpPass", formState.smtpPass || "");
     formData.append("smtpSecure", formState.smtpSecure ? "true" : "false");
-    fetcher.submit(formData, { method: "post", action: "/api/email-test" });
-  }, [formState, fetcher]);
+    emailTestFetcher.submit(formData, { method: "post", action: "/api/email-test" });
+  }, [formState, emailTestFetcher]);
 
   const successBanner = showSuccessBanner && actionData?.success && (
     <Banner title="Success" tone="success" onDismiss={() => setShowSuccessBanner(false)}><p>{actionData.success}</p></Banner>
@@ -265,9 +437,9 @@ export default function SettingsPage() {
     <Banner title="Error" tone="critical" onDismiss={() => setShowErrorBanner(false)}><p>{actionData.error}</p></Banner>
   );
 
-  const testBanner = showTestBanner && fetcher.data && (
-    <Banner title={fetcher.data.success ? "Success" : "Error"} tone={fetcher.data.success ? "success" : "critical"} onDismiss={() => setShowTestBanner(false)}>
-      <p>{fetcher.data.success || fetcher.data.error}</p>
+  const testBanner = showTestBanner && emailTestFetcher.data && (
+    <Banner title={emailTestFetcher.data.success ? "Success" : "Error"} tone={emailTestFetcher.data.success ? "success" : "critical"} onDismiss={() => setShowTestBanner(false)}>
+      <p>{emailTestFetcher.data.success || emailTestFetcher.data.error}</p>
     </Banner>
   );
 
@@ -302,48 +474,65 @@ export default function SettingsPage() {
           </Layout.Section>
 
           <Layout.Section>
-            <Card>
-              <BlockStack gap="500">
+            {canConfigureAi ? (
+              <Card>
+                <BlockStack gap="500">
                 <InlineStack align="space-between" blockAlign="center">
                   <Text variant="headingMd">AI Answer Generation</Text>
                   <Tooltip content="Help"><Button variant="plain" onClick={helpLinks['help.ai_generation'] ? () => window.open(helpLinks['help.ai_generation'], '_blank') : undefined} disabled={!helpLinks['help.ai_generation']}><Icon source={QuestionCircleIcon} /></Button></Tooltip>
                 </InlineStack>
                 <input type="hidden" name="aiEnabled" value={formState.aiEnabled ? "true" : "false"} />
+                <input type="hidden" name="aiFrontendEnabled" value={formState.aiFrontendEnabled ? "true" : "false"} />
                 <Checkbox
                   label="Enable AI-generated answers"
                   checked={formState.aiEnabled}
                   onChange={handleFormChange("aiEnabled")}
                   helpText="If checked, the question form in your storefront will use the AI-first workflow."
                 />
-                {formState.aiEnabled && (
-                  <BlockStack gap="400">
-                    <Select
-                      label="Response Language"
-                      name="aiLanguage"
-                      options={[
-                        { label: "English", value: "English" },
-                        { label: "Spanish", value: "Spanish" },
-                        { label: "French", value: "French" },
-                        { label: "German", value: "German" },
-                        { label: "Same as customer's question", value: "auto" },
-                      ]}
-                      value={formState.aiLanguage || "English"}
-                      onChange={handleFormChange("aiLanguage")}
-                      helpText="The language for the AI-generated response."
-                    />
-                    <TextField
-                      label="Custom Instructions for AI"
-                      name="aiInstructions"
-                      value={formState.aiInstructions || ""}
-                      onChange={handleFormChange("aiInstructions")}
-                      multiline={6}
-                      autoComplete="off"
-                      helpText="Provide specific instructions, context, or details for the AI to use when generating answers (e.g., store policies, product-specific details)."
-                    />
-                  </BlockStack>
-                )}
-              </BlockStack>
-            </Card>
+                <Checkbox
+                  label="Enable AI in the storefront widget"
+                  checked={formState.aiFrontendEnabled}
+                  onChange={handleFormChange("aiFrontendEnabled")}
+                  disabled={!formState.aiEnabled}
+                  helpText="When disabled, customers will see the standard question form even if AI is enabled for admins."
+                />
+                  {formState.aiEnabled && (
+                    <BlockStack gap="400">
+                      <Select
+                        label="Response Language"
+                        name="aiLanguage"
+                        options={[
+                          { label: "English", value: "English" },
+                          { label: "Spanish", value: "Spanish" },
+                          { label: "French", value: "French" },
+                          { label: "German", value: "German" },
+                          { label: "Same as customer's question", value: "auto" },
+                        ]}
+                        value={formState.aiLanguage || "English"}
+                        onChange={handleFormChange("aiLanguage")}
+                        helpText="The language for the AI-generated response."
+                      />
+                      <TextField
+                        label="Custom Instructions for AI"
+                        name="aiInstructions"
+                        value={formState.aiInstructions || ""}
+                        onChange={handleFormChange("aiInstructions")}
+                        multiline={6}
+                        autoComplete="off"
+                        helpText="Provide specific instructions, context, or details for the AI to use when generating answers (e.g., store policies, product-specific details)."
+                      />
+                    </BlockStack>
+                  )}
+                </BlockStack>
+              </Card>
+            ) : (
+              <Card>
+                <BlockStack gap="300">
+                  <Text variant="headingMd">AI Answer Generation</Text>
+                  {renderUpgradeBanner("AI automation is available on the Ultra plan.", [SubscriptionPlan.ULTRA])}
+                </BlockStack>
+              </Card>
+            )}
           </Layout.Section>
 
           <Layout.Section>
@@ -382,11 +571,15 @@ export default function SettingsPage() {
                     <ChoiceList
                       title="Email Provider"
                       choices={[{ label: "Use App's Email Provider", value: "APP" }, { label: "Use Custom SMTP Server", value: "CUSTOM" }]}
-                      selected={[formState.smtpProvider || "APP"]}
+                      selected={[canUseCustomEmail ? (formState.smtpProvider || "APP") : "APP"]}
                       onChange={handleChoiceListChange("smtpProvider")}
+                      disabled={!canUseCustomEmail}
                     />
-                    <input type="hidden" name="smtpProvider" value={formState.smtpProvider || "APP"} />
-                    {formState.smtpProvider === 'CUSTOM' && (
+                    {!canUseCustomEmail && isFreePlan && (
+                      renderUpgradeBanner("Custom SMTP is available on the Pro and Ultra plans.", [SubscriptionPlan.PRO, SubscriptionPlan.ULTRA])
+                    )}
+                    <input type="hidden" name="smtpProvider" value={canUseCustomEmail ? (formState.smtpProvider || "APP") : "APP"} />
+                    {canUseCustomEmail && formState.smtpProvider === 'CUSTOM' && (
                       <BlockStack gap="300">
                         <Text variant="headingSm">Custom SMTP Settings</Text>
                         <TextField label="SMTP Host" name="smtpHost" value={formState.smtpHost || ''} onChange={handleFormChange('smtpHost')} autoComplete="off" />
@@ -405,118 +598,148 @@ export default function SettingsPage() {
           </Layout.Section>
 
           <Layout.Section>
-            <Card>
-              <BlockStack gap="500">
-                <InlineStack align="space-between" blockAlign="center">
+            {canConfigureWebhooks ? (
+              <Card>
+                <BlockStack gap="500">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text variant="headingMd">Webhooks</Text>
+                    <Tooltip content="Help"><Button variant="plain" onClick={helpLinks['help.webhooks'] ? () => window.open(helpLinks['help.webhooks'], '_blank') : undefined} disabled={!helpLinks['help.webhooks']}><Icon source={QuestionCircleIcon} /></Button></Tooltip>
+                  </InlineStack>
+                  <TextField label="Webhook Endpoint URL" name="url" value={formState.url || ""} onChange={handleFormChange("url")} autoComplete="off" />
+                  <BlockStack gap="200">
+                    <input type="hidden" name="newQuestion" value={formState.newQuestion ? "true" : "false"} />
+                    <Checkbox label="New Question" checked={formState.newQuestion} onChange={handleFormChange("newQuestion")} />
+                    <input type="hidden" name="editQuestion" value={formState.editQuestion ? "true" : "false"} />
+                    <Checkbox label="Edit Question" checked={formState.editQuestion} onChange={handleFormChange("editQuestion")} />
+                    <input type="hidden" name="deleteQuestion" value={formState.deleteQuestion ? "true" : "false"} />
+                    <Checkbox label="Delete Question" checked={formState.deleteQuestion} onChange={handleFormChange("deleteQuestion")} />
+                    <input type="hidden" name="newAnswer" value={formState.newAnswer ? "true" : "false"} />
+                    <Checkbox label="New Answer" checked={formState.newAnswer} onChange={handleFormChange("newAnswer")} />
+                    <input type="hidden" name="editAnswer" value={formState.editAnswer ? "true" : "false"} />
+                    <Checkbox label="Edit Answer" checked={formState.editAnswer} onChange={handleFormChange("editAnswer")} />
+                    <input type="hidden" name="deleteAnswer" value={formState.deleteAnswer ? "true" : "false"} />
+                    <Checkbox label="Delete Answer" checked={formState.deleteAnswer} onChange={handleFormChange("deleteAnswer")} />
+                    <input type="hidden" name="approveQuestion" value={formState.approveQuestion ? "true" : "false"} />
+                    <Checkbox label="Approve Question" checked={formState.approveQuestion} onChange={handleFormChange("approveQuestion")} />
+                    <input type="hidden" name="newVote" value={formState.newVote ? "true" : "false"} />
+                    <Checkbox label="New Vote" checked={formState.newVote} onChange={handleFormChange("newVote")} />
+                  </BlockStack>
+                </BlockStack>
+              </Card>
+            ) : (
+              <Card>
+                <BlockStack gap="300">
                   <Text variant="headingMd">Webhooks</Text>
-                  <Tooltip content="Help"><Button variant="plain" onClick={helpLinks['help.webhooks'] ? () => window.open(helpLinks['help.webhooks'], '_blank') : undefined} disabled={!helpLinks['help.webhooks']}><Icon source={QuestionCircleIcon} /></Button></Tooltip>
-                </InlineStack>
-                <TextField label="Webhook Endpoint URL" name="url" value={formState.url || ""} onChange={handleFormChange("url")} autoComplete="off" />
-                <BlockStack gap="200">
-                  <input type="hidden" name="newQuestion" value={formState.newQuestion ? "true" : "false"} />
-                  <Checkbox label="New Question" checked={formState.newQuestion} onChange={handleFormChange("newQuestion")} />
-                  <input type="hidden" name="editQuestion" value={formState.editQuestion ? "true" : "false"} />
-                  <Checkbox label="Edit Question" checked={formState.editQuestion} onChange={handleFormChange("editQuestion")} />
-                  <input type="hidden" name="deleteQuestion" value={formState.deleteQuestion ? "true" : "false"} />
-                  <Checkbox label="Delete Question" checked={formState.deleteQuestion} onChange={handleFormChange("deleteQuestion")} />
-                  <input type="hidden" name="newAnswer" value={formState.newAnswer ? "true" : "false"} />
-                  <Checkbox label="New Answer" checked={formState.newAnswer} onChange={handleFormChange("newAnswer")} />
-                  <input type="hidden" name="editAnswer" value={formState.editAnswer ? "true" : "false"} />
-                  <Checkbox label="Edit Answer" checked={formState.editAnswer} onChange={handleFormChange("editAnswer")} />
-                  <input type="hidden" name="deleteAnswer" value={formState.deleteAnswer ? "true" : "false"} />
-                  <Checkbox label="Delete Answer" checked={formState.deleteAnswer} onChange={handleFormChange("deleteAnswer")} />
-                  <input type="hidden" name="approveQuestion" value={formState.approveQuestion ? "true" : "false"} />
-                  <Checkbox label="Approve Question" checked={formState.approveQuestion} onChange={handleFormChange("approveQuestion")} />
-                  <input type="hidden" name="newVote" value={formState.newVote ? "true" : "false"} />
-                  <Checkbox label="New Vote" checked={formState.newVote} onChange={handleFormChange("newVote")} />
+                  {renderUpgradeBanner("Webhooks are available on the Pro and Ultra plans.", [SubscriptionPlan.PRO, SubscriptionPlan.ULTRA])}
                 </BlockStack>
-              </BlockStack>
-            </Card>
+              </Card>
+            )}
           </Layout.Section>
 
           <Layout.Section>
-            <Card>
-              <BlockStack gap="500">
-                <InlineStack align="space-between" blockAlign="center">
+            {canEditTranslations ? (
+              <Card>
+                <BlockStack gap="500">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text variant="headingMd">Translations</Text>
+                    <Tooltip content="Help"><Button variant="plain" onClick={helpLinks['help.translations'] ? () => window.open(helpLinks['help.translations'], '_blank') : undefined} disabled={!helpLinks['help.translations']}><Icon source={QuestionCircleIcon} /></Button></Tooltip>
+                  </InlineStack>
+                  <Text variant="bodyMd" tone="subdued">Customize the customer-facing messages shown in the storefront widget. Leave a field blank to use the default copy.</Text>
+                  {canConfigureAi && (
+                    <>
+                      <Text variant="headingSm">AI Behavior</Text>
+                      <TextField label="AI Submit Button Text" name="translationAiSubmitButton" value={formState.translationAiSubmitButton || ""} onChange={handleFormChange("translationAiSubmitButton")} autoComplete="off" placeholder="Ask with AI" />
+                      <TextField label="Ask Human Prompt Text" name="translationAiHumanPrompt" value={formState.translationAiHumanPrompt || ""} onChange={handleFormChange("translationAiHumanPrompt")} autoComplete="off" placeholder="Not the answer you were looking for?" />
+                      <TextField label="Ask Human Button Text" name="translationAiHumanButton" value={formState.translationAiHumanButton || ""} onChange={handleFormChange("translationAiHumanButton")} autoComplete="off" placeholder="Ask a Human Expert" />
+                      <TextField label="Bypass AI Link Text" name="translationAiBypassButton" value={formState.translationAiBypassButton || ""} onChange={handleFormChange("translationAiBypassButton")} autoComplete="off" placeholder="Or, ask a human" />
+                      <TextField label="AI Helpful Button Text" name="translationAiHelpfulButton" value={formState.translationAiHelpfulButton || ""} onChange={handleFormChange("translationAiHelpfulButton")} autoComplete="off" placeholder="Helpful" />
+                      <TextField label="AI Not Helpful Button Text" name="translationAiNotHelpfulButton" value={formState.translationAiNotHelpfulButton || ""} onChange={handleFormChange("translationAiNotHelpfulButton")} autoComplete="off" placeholder="Not Helpful" />
+                    </>
+                  )}
+
+                  <Text variant="headingSm">Form Fields & Messages</Text>
+                  <TextField label="Submitting Button Text" name="translationSubmittingText" value={formState.translationSubmittingText || ""} onChange={handleFormChange("translationSubmittingText")} autoComplete="off" placeholder="Submitting..." />
+                  <TextField label="Success Message" name="translationSuccessMessage" value={formState.translationSuccessMessage || ""} onChange={handleFormChange("translationSuccessMessage")} autoComplete="off" placeholder="Thank you! Your question has been submitted successfully." multiline />
+                  <TextField label="Error Message" name="translationErrorMessage" value={formState.translationErrorMessage || ""} onChange={handleFormChange("translationErrorMessage")} autoComplete="off" placeholder="Sorry, there was an error submitting your question." multiline />
+                  <TextField label="Character Limit Message" name="translationCharLimitMessage" value={formState.translationCharLimitMessage || ""} onChange={handleFormChange("translationCharLimitMessage")} autoComplete="off" placeholder="Your question cannot exceed {{limit}} characters." multiline helpText="Use {{limit}} to reference the maximum character count." />
+                  
+                  <Text variant="headingSm">Display Widget</Text>
+                  <TextField label="Loading Questions Message" name="translationLoadingQuestions" value={formState.translationLoadingQuestions || ""} onChange={handleFormChange("translationLoadingQuestions")} autoComplete="off" placeholder="Loading questions..." multiline />
+                  <TextField label="Loading More Message" name="translationLoadingMore" value={formState.translationLoadingMore || ""} onChange={handleFormChange("translationLoadingMore")} autoComplete="off" placeholder="Loading..." />
+                  <TextField label="Search Placeholder" name="translationSearchPlaceholder" value={formState.translationSearchPlaceholder || ""} onChange={handleFormChange("translationSearchPlaceholder")} autoComplete="off" placeholder="Search questions..." />
+                  <TextField label="Load Error Message" name="translationLoadError" value={formState.translationLoadError || ""} onChange={handleFormChange("translationLoadError")} autoComplete="off" placeholder="Failed to load questions. Please try again later." multiline />
+                  <TextField label="Asked By Prefix" name="translationAskedByText" value={formState.translationAskedByText || ""} onChange={handleFormChange("translationAskedByText")} autoComplete="off" placeholder="Asked by" />
+                  <TextField label="Answered By Prefix" name="translationAnsweredByText" value={formState.translationAnsweredByText || ""} onChange={handleFormChange("translationAnsweredByText")} autoComplete="off" placeholder="Answered by" />
+                  <TextField label="Date Prefix" name="translationOnDateText" value={formState.translationOnDateText || ""} onChange={handleFormChange("translationOnDateText")} autoComplete="off" placeholder="on" />
+                  <TextField label="Date Locale" name="translationDateLocale" value={formState.translationDateLocale || ""} onChange={handleFormChange("translationDateLocale")} autoComplete="off" placeholder="en-US" helpText="Optional locale for dates (e.g. en-US, es-ES). Leave blank to use the shopper's browser locale." />
+                  <Select label="Date Style" name="translationDateStyle" options={dateStyleOptions} value={formState.translationDateStyle || ""} onChange={handleFormChange("translationDateStyle")} helpText="Controls the overall length of the formatted date when translations are applied." />
+                  <TextField label="Helpful Button Label" name="translationHelpfulText" value={formState.translationHelpfulText || ""} onChange={handleFormChange("translationHelpfulText")} autoComplete="off" placeholder="Helpful" />
+                  <TextField label="Voting State Label" name="translationVotingText" value={formState.translationVotingText || ""} onChange={handleFormChange("translationVotingText")} autoComplete="off" placeholder="Voting..." />
+                  <TextField label="Voted State Label" name="translationVotedText" value={formState.translationVotedText || ""} onChange={handleFormChange("translationVotedText")} autoComplete="off" placeholder="Voted!" />
+                </BlockStack>
+              </Card>
+            ) : (
+              <Card>
+                <BlockStack gap="300">
                   <Text variant="headingMd">Translations</Text>
-                  <Tooltip content="Help"><Button variant="plain" onClick={helpLinks['help.translations'] ? () => window.open(helpLinks['help.translations'], '_blank') : undefined} disabled={!helpLinks['help.translations']}><Icon source={QuestionCircleIcon} /></Button></Tooltip>
-                </InlineStack>
-                <Text variant="bodyMd" tone="subdued">Customize the customer-facing messages shown in the storefront widget. Leave a field blank to use the default copy.</Text>
-                
-                <Text variant="headingSm">AI Behavior</Text>
-                <TextField label="AI Submit Button Text" name="translationAiSubmitButton" value={formState.translationAiSubmitButton || ""} onChange={handleFormChange("translationAiSubmitButton")} autoComplete="off" placeholder="Ask with AI" />
-                <TextField label="Ask Human Prompt Text" name="translationAiHumanPrompt" value={formState.translationAiHumanPrompt || ""} onChange={handleFormChange("translationAiHumanPrompt")} autoComplete="off" placeholder="Not the answer you were looking for?" />
-                <TextField label="Ask Human Button Text" name="translationAiHumanButton" value={formState.translationAiHumanButton || ""} onChange={handleFormChange("translationAiHumanButton")} autoComplete="off" placeholder="Ask a Human Expert" />
-                <TextField label="Bypass AI Link Text" name="translationAiBypassButton" value={formState.translationAiBypassButton || ""} onChange={handleFormChange("translationAiBypassButton")} autoComplete="off" placeholder="Or, ask a human" />
-                <TextField label="AI Helpful Button Text" name="translationAiHelpfulButton" value={formState.translationAiHelpfulButton || ""} onChange={handleFormChange("translationAiHelpfulButton")} autoComplete="off" placeholder="Helpful" />
-                <TextField label="AI Not Helpful Button Text" name="translationAiNotHelpfulButton" value={formState.translationAiNotHelpfulButton || ""} onChange={handleFormChange("translationAiNotHelpfulButton")} autoComplete="off" placeholder="Not Helpful" />
-
-                <Text variant="headingSm">Form Fields & Messages</Text>
-                <TextField label="Submitting Button Text" name="translationSubmittingText" value={formState.translationSubmittingText || ""} onChange={handleFormChange("translationSubmittingText")} autoComplete="off" placeholder="Submitting..." />
-                <TextField label="Success Message" name="translationSuccessMessage" value={formState.translationSuccessMessage || ""} onChange={handleFormChange("translationSuccessMessage")} autoComplete="off" placeholder="Thank you! Your question has been submitted successfully." multiline />
-                <TextField label="Error Message" name="translationErrorMessage" value={formState.translationErrorMessage || ""} onChange={handleFormChange("translationErrorMessage")} autoComplete="off" placeholder="Sorry, there was an error submitting your question." multiline />
-                <TextField label="Character Limit Message" name="translationCharLimitMessage" value={formState.translationCharLimitMessage || ""} onChange={handleFormChange("translationCharLimitMessage")} autoComplete="off" placeholder="Your question cannot exceed {{limit}} characters." multiline helpText="Use {{limit}} to reference the maximum character count." />
-                
-                <Text variant="headingSm">Display Widget</Text>
-                <TextField label="Loading Questions Message" name="translationLoadingQuestions" value={formState.translationLoadingQuestions || ""} onChange={handleFormChange("translationLoadingQuestions")} autoComplete="off" placeholder="Loading questions..." multiline />
-                <TextField label="Loading More Message" name="translationLoadingMore" value={formState.translationLoadingMore || ""} onChange={handleFormChange("translationLoadingMore")} autoComplete="off" placeholder="Loading..." />
-                <TextField label="Search Placeholder" name="translationSearchPlaceholder" value={formState.translationSearchPlaceholder || ""} onChange={handleFormChange("translationSearchPlaceholder")} autoComplete="off" placeholder="Search questions..." />
-                <TextField label="Load Error Message" name="translationLoadError" value={formState.translationLoadError || ""} onChange={handleFormChange("translationLoadError")} autoComplete="off" placeholder="Failed to load questions. Please try again later." multiline />
-                <TextField label="Asked By Prefix" name="translationAskedByText" value={formState.translationAskedByText || ""} onChange={handleFormChange("translationAskedByText")} autoComplete="off" placeholder="Asked by" />
-                <TextField label="Answered By Prefix" name="translationAnsweredByText" value={formState.translationAnsweredByText || ""} onChange={handleFormChange("translationAnsweredByText")} autoComplete="off" placeholder="Answered by" />
-                <TextField label="Date Prefix" name="translationOnDateText" value={formState.translationOnDateText || ""} onChange={handleFormChange("translationOnDateText")} autoComplete="off" placeholder="on" />
-                <TextField label="Date Locale" name="translationDateLocale" value={formState.translationDateLocale || ""} onChange={handleFormChange("translationDateLocale")} autoComplete="off" placeholder="en-US" helpText="Optional locale for dates (e.g. en-US, es-ES). Leave blank to use the shopper's browser locale." />
-                <Select label="Date Style" name="translationDateStyle" options={dateStyleOptions} value={formState.translationDateStyle || ""} onChange={handleFormChange("translationDateStyle")} helpText="Controls the overall length of the formatted date when translations are applied." />
-                <TextField label="Helpful Button Label" name="translationHelpfulText" value={formState.translationHelpfulText || ""} onChange={handleFormChange("translationHelpfulText")} autoComplete="off" placeholder="Helpful" />
-                <TextField label="Voting State Label" name="translationVotingText" value={formState.translationVotingText || ""} onChange={handleFormChange("translationVotingText")} autoComplete="off" placeholder="Voting..." />
-                <TextField label="Voted State Label" name="translationVotedText" value={formState.translationVotedText || ""} onChange={handleFormChange("translationVotedText")} autoComplete="off" placeholder="Voted!" />
-              </BlockStack>
-            </Card>
+                  {renderUpgradeBanner("Advanced widget translations are available on the Pro and Ultra plans.", [SubscriptionPlan.PRO, SubscriptionPlan.ULTRA])}
+                </BlockStack>
+              </Card>
+            )}
           </Layout.Section>
 
           <Layout.Section>
-            <Card>
-              <BlockStack gap="500">
-                <InlineStack align="space-between" blockAlign="center">
+            {canUseCustomEmail ? (
+              <Card>
+                <BlockStack gap="500">
+                  <InlineStack align="space-between" blockAlign="center">
+                    <Text variant="headingMd">Email Templates</Text>
+                    <Tooltip content="Help"><Button variant="plain" onClick={helpLinks['help.email_templates'] ? () => window.open(helpLinks['help.email_templates'], '_blank') : undefined} disabled={!helpLinks['help.email_templates']}><Icon source={QuestionCircleIcon} /></Button></Tooltip>
+                  </InlineStack>
+                  <Text variant="bodyMd" tone="subdued">Customize the email notifications sent to customers and admins.</Text>
+                  <BlockStack gap="300">
+                    <Button onClick={() => setAnswerTemplateOpen(!answerTemplateOpen)} ariaExpanded={answerTemplateOpen} ariaControls="answer-template" icon={answerTemplateOpen ? ChevronUpIcon : ChevronDownIcon} fullWidth textAlign="left">Answer Notification (to customer)</Button>
+                    <Collapsible open={answerTemplateOpen} id="answer-template" transition={{duration: '200ms', timingFunction: 'ease-in-out'}}>
+                      <BlockStack gap="300">
+                        <Text variant="bodyMd" tone="subdued">Available variables: {'{{customerName}}, {{question}}, {{answer}}, {{productName}}, {{productUrl}}, {{storeName}}'}</Text>
+                        <TextField label="Subject" name="answerEmailSubject" value={formState.answerEmailSubject || ''} onChange={handleFormChange('answerEmailSubject')} placeholder="Your question has been answered!" />
+                        <TextField label="Body (HTML)" name="answerEmailBody" value={formState.answerEmailBody || ''} onChange={handleFormChange('answerEmailBody')} multiline={8} placeholder="<p>Hi {{customerName}},</p><p>Your question has been answered...</p>" />
+                        <Button onClick={() => { setFormState(prev => ({ ...prev, answerEmailSubject: null, answerEmailBody: null })); }}>Reset to Default</Button>
+                      </BlockStack>
+                    </Collapsible>
+                  </BlockStack>
+                  <BlockStack gap="300">
+                    <Button onClick={() => setPublishedTemplateOpen(!publishedTemplateOpen)} ariaExpanded={publishedTemplateOpen} ariaControls="published-template" icon={publishedTemplateOpen ? ChevronUpIcon : ChevronDownIcon} fullWidth textAlign="left">Question Published (to customer)</Button>
+                    <Collapsible open={publishedTemplateOpen} id="published-template" transition={{duration: '200ms', timingFunction: 'ease-in-out'}}>
+                      <BlockStack gap="300">
+                        <Text variant="bodyMd" tone="subdued">Available variables: {'{{customerName}}, {{question}}, {{productName}}, {{productUrl}}, {{storeName}}'}</Text>
+                        <TextField label="Subject" name="questionPublishedSubject" value={formState.questionPublishedSubject || ''} onChange={handleFormChange('questionPublishedSubject')} placeholder="Your question has been published!" />
+                        <TextField label="Body (HTML)" name="questionPublishedEmailBody" value={formState.questionPublishedEmailBody || ''} onChange={handleFormChange('questionPublishedEmailBody')} multiline={8} placeholder="<p>Hi {{customerName}},</p><p>Your question has been published...</p>" />
+                        <Button onClick={() => { setFormState(prev => ({ ...prev, questionPublishedSubject: null, questionPublishedEmailBody: null })); }}>Reset to Default</Button>
+                      </BlockStack>
+                    </Collapsible>
+                  </BlockStack>
+                  <BlockStack gap="300">
+                    <Button onClick={() => setAdminTemplateOpen(!adminTemplateOpen)} ariaExpanded={adminTemplateOpen} ariaControls="admin-template" icon={adminTemplateOpen ? ChevronUpIcon : ChevronDownIcon} fullWidth textAlign="left">New Question Notification (to admin)</Button>
+                    <Collapsible open={adminTemplateOpen} id="admin-template" transition={{duration: '200ms', timingFunction: 'ease-in-out'}}>
+                      <BlockStack gap="300">
+                        <Text variant="bodyMd" tone="subdued">Available variables: {'{{customerName}}, {{question}}, {{storeName}}, {{dashboardUrl}}'}</Text>
+                        <TextField label="Subject" name="newQuestionAdminSubject" value={formState.newQuestionAdminSubject || ''} onChange={handleFormChange('newQuestionAdminSubject')} placeholder="New Question Submitted on Your Store" />
+                        <TextField label="Body (HTML)" name="newQuestionAdminEmailBody" value={formState.newQuestionAdminEmailBody || ''} onChange={handleFormChange('newQuestionAdminEmailBody')} multiline={8} placeholder="<p>A new question has been submitted...</p>" />
+                        <Button onClick={() => { setFormState(prev => ({ ...prev, newQuestionAdminSubject: null, newQuestionAdminEmailBody: null })); }}>Reset to Default</Button>
+                      </BlockStack>
+                    </Collapsible>
+                  </BlockStack>
+                </BlockStack>
+              </Card>
+            ) : (
+              <Card>
+                <BlockStack gap="300">
                   <Text variant="headingMd">Email Templates</Text>
-                  <Tooltip content="Help"><Button variant="plain" onClick={helpLinks['help.email_templates'] ? () => window.open(helpLinks['help.email_templates'], '_blank') : undefined} disabled={!helpLinks['help.email_templates']}><Icon source={QuestionCircleIcon} /></Button></Tooltip>
-                </InlineStack>
-                <Text variant="bodyMd" tone="subdued">Customize the email notifications sent to customers and admins.</Text>
-                <BlockStack gap="300">
-                  <Button onClick={() => setAnswerTemplateOpen(!answerTemplateOpen)} ariaExpanded={answerTemplateOpen} ariaControls="answer-template" icon={answerTemplateOpen ? ChevronUpIcon : ChevronDownIcon} fullWidth textAlign="left">Answer Notification (to customer)</Button>
-                  <Collapsible open={answerTemplateOpen} id="answer-template" transition={{duration: '200ms', timingFunction: 'ease-in-out'}}>
-                    <BlockStack gap="300">
-                      <Text variant="bodyMd" tone="subdued">Available variables: {'{{customerName}}, {{question}}, {{answer}}, {{productName}}, {{productUrl}}, {{storeName}}'}</Text>
-                      <TextField label="Subject" name="answerEmailSubject" value={formState.answerEmailSubject || ''} onChange={handleFormChange('answerEmailSubject')} placeholder="Your question has been answered!" />
-                      <TextField label="Body (HTML)" name="answerEmailBody" value={formState.answerEmailBody || ''} onChange={handleFormChange('answerEmailBody')} multiline={8} placeholder="<p>Hi {{customerName}},</p><p>Your question has been answered...</p>" />
-                      <Button onClick={() => { setFormState(prev => ({ ...prev, answerEmailSubject: null, answerEmailBody: null })); }}>Reset to Default</Button>
-                    </BlockStack>
-                  </Collapsible>
+                  {renderUpgradeBanner("Email template customization is available on the Pro and Ultra plans.", [SubscriptionPlan.PRO, SubscriptionPlan.ULTRA])}
                 </BlockStack>
-                <BlockStack gap="300">
-                  <Button onClick={() => setPublishedTemplateOpen(!publishedTemplateOpen)} ariaExpanded={publishedTemplateOpen} ariaControls="published-template" icon={publishedTemplateOpen ? ChevronUpIcon : ChevronDownIcon} fullWidth textAlign="left">Question Published (to customer)</Button>
-                  <Collapsible open={publishedTemplateOpen} id="published-template" transition={{duration: '200ms', timingFunction: 'ease-in-out'}}>
-                    <BlockStack gap="300">
-                      <Text variant="bodyMd" tone="subdued">Available variables: {'{{customerName}}, {{question}}, {{productName}}, {{productUrl}}, {{storeName}}'}</Text>
-                      <TextField label="Subject" name="questionPublishedSubject" value={formState.questionPublishedSubject || ''} onChange={handleFormChange('questionPublishedSubject')} placeholder="Your question has been published!" />
-                      <TextField label="Body (HTML)" name="questionPublishedEmailBody" value={formState.questionPublishedEmailBody || ''} onChange={handleFormChange('questionPublishedEmailBody')} multiline={8} placeholder="<p>Hi {{customerName}},</p><p>Your question has been published...</p>" />
-                      <Button onClick={() => { setFormState(prev => ({ ...prev, questionPublishedSubject: null, questionPublishedEmailBody: null })); }}>Reset to Default</Button>
-                    </BlockStack>
-                  </Collapsible>
-                </BlockStack>
-                <BlockStack gap="300">
-                  <Button onClick={() => setAdminTemplateOpen(!adminTemplateOpen)} ariaExpanded={adminTemplateOpen} ariaControls="admin-template" icon={adminTemplateOpen ? ChevronUpIcon : ChevronDownIcon} fullWidth textAlign="left">New Question Notification (to admin)</Button>
-                  <Collapsible open={adminTemplateOpen} id="admin-template" transition={{duration: '200ms', timingFunction: 'ease-in-out'}}>
-                    <BlockStack gap="300">
-                      <Text variant="bodyMd" tone="subdued">Available variables: {'{{customerName}}, {{question}}, {{storeName}}, {{dashboardUrl}}'}</Text>
-                      <TextField label="Subject" name="newQuestionAdminSubject" value={formState.newQuestionAdminSubject || ''} onChange={handleFormChange('newQuestionAdminSubject')} placeholder="New Question Submitted on Your Store" />
-                      <TextField label="Body (HTML)" name="newQuestionAdminEmailBody" value={formState.newQuestionAdminEmailBody || ''} onChange={handleFormChange('newQuestionAdminEmailBody')} multiline={8} placeholder="<p>A new question has been submitted...</p>" />
-                      <Button onClick={() => { setFormState(prev => ({ ...prev, newQuestionAdminSubject: null, newQuestionAdminEmailBody: null })); }}>Reset to Default</Button>
-                    </BlockStack>
-                  </Collapsible>
-                </BlockStack>
-              </BlockStack>
-            </Card>
+              </Card>
+            )}
           </Layout.Section>
 
           <Layout.Section>

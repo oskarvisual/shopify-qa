@@ -5,6 +5,7 @@ import {
   useNavigate,
   useLoaderData,
   Form,
+  useFetcher,
 } from "@remix-run/react";
 import { useState, useCallback, useEffect } from "react";
 import Papa from "papaparse";
@@ -27,6 +28,9 @@ import {
 import { QuestionCircleIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { PlanFeature, SubscriptionPlan, getBillingButtonLabel, getBillingPlan, isAtLeastPlan, planHasFeature } from "../lib/plans";
+import { getSubscriptionPlanContext } from "../lib/plans.server";
+import { usePlanContext, usePlanFeature } from "../lib/plan-context";
 
 const GET_PRODUCT_DETAILS_QUERY = `
   query getProductDetails($id: ID!) {
@@ -39,7 +43,13 @@ const GET_PRODUCT_DETAILS_QUERY = `
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
-  const { shop } = session;
+  const { shop, subscriptionPlan } = session;
+  const planContext = await getSubscriptionPlanContext({ shop, sessionPlan: subscriptionPlan });
+  const allowed = planHasFeature(planContext.features, PlanFeature.PAGE_IMPORT_EXPORT);
+
+  if (!allowed) {
+    return json({ allowed: false, plan: planContext.plan });
+  }
 
   const [totalQuestions, totalAnswers, helpConfigs] = await Promise.all([
     prisma.question.count({ where: { shop } }),
@@ -61,6 +71,7 @@ export const loader = async ({ request }) => {
   }, {});
 
   return json({
+    allowed: true,
     totalQuestions,
     totalAnswers,
     helpLinks,
@@ -69,7 +80,12 @@ export const loader = async ({ request }) => {
 
 export const action = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
-  const { shop } = session;
+  const { shop, subscriptionPlan } = session;
+  const planContext = await getSubscriptionPlanContext({ shop, sessionPlan: subscriptionPlan });
+
+  if (!planHasFeature(planContext.features, PlanFeature.PAGE_IMPORT_EXPORT)) {
+    return json({ error: "Your current plan does not include import/export." }, { status: 403 });
+  }
 
   const formData = await request.formData();
   const actionType = formData.get("actionType");
@@ -404,10 +420,79 @@ export const action = async ({ request }) => {
 };
 
 export default function ImportExportPage() {
-  const { totalQuestions, totalAnswers, helpLinks } = useLoaderData();
+  const { allowed = true, totalQuestions = 0, totalAnswers = 0, helpLinks = {} } = useLoaderData();
   const actionData = useActionData();
   const submit = useSubmit();
   const navigate = useNavigate();
+  const billingFetcher = useFetcher();
+  const { plan } = usePlanContext();
+  const canUseImportExport = usePlanFeature(PlanFeature.PAGE_IMPORT_EXPORT);
+  const planLabel = plan ? `${plan.charAt(0).toUpperCase()}${plan.slice(1)}` : 'Free';
+
+  const handleUpgrade = useCallback(
+    (targetPlan) => {
+      const billingPlan = getBillingPlan(targetPlan);
+      if (!billingPlan) return;
+      billingFetcher.submit({ plan: targetPlan }, { method: "post", action: "/app/billing" });
+    },
+    [billingFetcher]
+  );
+
+  const renderUpgradeBanner = (message, targetPlans) => {
+    const plansToShow = targetPlans.filter((target) => !isAtLeastPlan(plan, target));
+    if (plansToShow.length === 0) {
+      return (
+        <Banner tone="warning" title="Upgrade required">
+          <Text as="p">{message}</Text>
+        </Banner>
+      );
+    }
+
+    const submittingPlan = billingFetcher.formData?.get("plan");
+
+    return (
+      <Banner tone="warning" title="Upgrade required">
+        <BlockStack gap="200">
+          <Text as="p">{message}</Text>
+          <InlineStack gap="200">
+            {plansToShow.map((targetPlan) => {
+              const billingPlan = getBillingPlan(targetPlan);
+              if (!billingPlan) return null;
+              const label = getBillingButtonLabel(targetPlan) || `Upgrade to ${billingPlan.shortName}`;
+              const isProcessing = billingFetcher.state === "submitting" && submittingPlan === targetPlan;
+              return (
+                <Button
+                  key={targetPlan}
+                  variant="primary"
+                  onClick={() => handleUpgrade(targetPlan)}
+                  loading={isProcessing}
+                  disabled={isProcessing}
+                >
+                  {label}
+                </Button>
+              );
+            })}
+          </InlineStack>
+        </BlockStack>
+      </Banner>
+    );
+  };
+
+  if (!allowed || !canUseImportExport) {
+    return (
+      <Page title="Import & Export" backAction={{ content: "Dashboard", onAction: () => navigate("/app") }}>
+        <Card>
+          <BlockStack gap="300">
+            <Text variant="headingMd">Upgrade Required</Text>
+            <Text tone="subdued" as="p">
+              Importing and exporting questions is only available on the Pro and Ultra plans. Your current plan ({planLabel}) does not include this feature.
+            </Text>
+            {renderUpgradeBanner("Upgrade to unlock import and export tools.", [SubscriptionPlan.PRO, SubscriptionPlan.ULTRA])}
+          </BlockStack>
+        </Card>
+      </Page>
+    );
+  }
 
   const [importType, setImportType] = useState("questions");
   const [files, setFiles] = useState([]);

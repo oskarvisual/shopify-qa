@@ -23,6 +23,9 @@ import {
 import { authenticate } from "../shopify.server";
 import { triggerWebhook } from "../lib/webhook.server.js";
 import { sendNewAnswerNotification, sendQuestionPublishedNotification } from "../lib/email.server.js";
+import { usePlanFeature } from "../lib/plan-context";
+import { PlanFeature, planHasFeature } from "../lib/plans";
+import { getSubscriptionPlanContext } from "../lib/plans.server";
 const CHARACTER_LIMIT = 500;
 const GET_PRODUCT_HANDLE_AND_SHOP_QUERY = `
   query getProductHandleAndShop($productId: ID!) {
@@ -45,13 +48,14 @@ export const loader = async ({ request, params }) => {
     return redirect("/app");
   }
 
-  const [question, emailSettings, aiSettings] = await Promise.all([
+  const [question, emailSettings, aiSettings, planContext] = await Promise.all([
     prisma.question.findUnique({
       where: { id: questionId, shop: shop },
       include: { answers: { orderBy: { createdAt: "asc" } } },
     }),
     prisma.emailSetting.findUnique({ where: { shop } }),
     prisma.aiSetting.findUnique({ where: { shop } }),
+    getSubscriptionPlanContext({ shop, sessionPlan: session.subscriptionPlan }),
   ]);
 
   if (!question) {
@@ -86,12 +90,17 @@ export const loader = async ({ request, params }) => {
     }
   }
 
-  return json({ 
-    question, 
-    productDetails, 
-    shop, 
-    emailSettings: emailSettings || {}, 
-    aiSettings: aiSettings || {}
+  const adminAiEnabled = planHasFeature(planContext.features, PlanFeature.ADMIN_AI);
+
+  return json({
+    question,
+    productDetails,
+    shop,
+    emailSettings: emailSettings || {},
+    aiSettings: {
+      aiEnabled: Boolean(aiSettings?.aiEnabled && adminAiEnabled),
+      aiFrontendEnabled: Boolean(aiSettings?.aiFrontendEnabled),
+    },
   });
 };
 
@@ -302,12 +311,17 @@ export default function ViewQuestionPage() {
   const [answerPublished, setAnswerPublished] = useState(true);
   const [notifyUser, setNotifyUser] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const canUseAdminAi = usePlanFeature(PlanFeature.ADMIN_AI);
 
   // Banner state
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [showErrorBanner, setShowErrorBanner] = useState(false);
 
   const handleGenerateAnswer = async () => {
+    if (!canUseAdminAi || !aiSettings?.aiEnabled) {
+      return;
+    }
+
     setIsGenerating(true);
     try {
       const response = await fetch('/api/ai-answer', {
@@ -560,7 +574,7 @@ export default function ViewQuestionPage() {
               maxLength={CHARACTER_LIMIT}
               showCharacterCount
             />
-            {aiSettings?.aiEnabled && (
+            {aiSettings?.aiEnabled && canUseAdminAi && (
               <InlineStack align="end">
                 <Button
                   onClick={handleGenerateAnswer}

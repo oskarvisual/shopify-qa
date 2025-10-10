@@ -1,15 +1,24 @@
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useFetcher } from "@remix-run/react";
 import { Page, Card, DataTable, Text, Badge, Modal, BlockStack, Thumbnail, InlineStack, Button, TextField, Spinner } from "@shopify/polaris";
 import { ThumbsUpIcon, ThumbsDownIcon } from '@shopify/polaris-icons';
 import { useState, useEffect, useCallback } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { PlanFeature, planHasFeature } from "../lib/plans";
+import { getSubscriptionPlanContext } from "../lib/plans.server";
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
-  const { shop } = session;
+  const { shop, subscriptionPlan } = session;
   const adminUserId = session.userId ?? session.id;
+
+  const planContext = await getSubscriptionPlanContext({ shop, sessionPlan: subscriptionPlan });
+  const canViewLogs = planHasFeature(planContext.features, PlanFeature.PAGE_AI_LOGS) && planHasFeature(planContext.features, PlanFeature.ADMIN_AI);
+
+  if (!canViewLogs) {
+    throw redirect("/app");
+  }
 
   const logs = await prisma.aiLog.findMany({
     where: { shop },

@@ -55,6 +55,24 @@ export const action = async ({ request }) => {
 
     if (webhookUrl) {
       try {
+        // Fetch the AI log with full context for the webhook
+        const aiLog = await prisma.aiLog.findUnique({
+          where: { id: aiLogId },
+          select: {
+            id: true,
+            shop: true,
+            productId: true,
+            customerQuestion: true,
+            aiAnswer: true,
+            fullContext: true,
+            vote: true,
+            askedHuman: true,
+            noAnswer: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+
         await fetch(webhookUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -62,6 +80,7 @@ export const action = async ({ request }) => {
             event: isUpdate ? "ai_feedback.updated" : "ai_feedback.created",
             shop,
             feedback,
+            aiLog,
           }),
         });
       } catch (webhookError) {

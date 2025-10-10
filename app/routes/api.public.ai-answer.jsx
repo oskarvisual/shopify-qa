@@ -2,6 +2,8 @@ import { json } from "@remix-run/node";
 import prisma from "../db.server";
 import { generateAnswer } from "../lib/ai.server.js";
 import { unauthenticated } from "../shopify.server";
+import { PlanFeature, planHasFeature } from "../lib/plans";
+import { getSubscriptionPlanContext } from "../lib/plans.server";
 
 const GET_PRODUCT_DETAILS_QUERY = `
   query getProduct($id: ID!) {
@@ -32,11 +34,22 @@ export async function action({ request }) {
   }
 
   try {
+    const planContext = await getSubscriptionPlanContext({ shop });
+    const aiEnabledForPlan = planHasFeature(planContext.features, PlanFeature.FRONTEND_AI);
+
     // 1. Fetch AI Settings from DB
     const aiSettings = await prisma.aiSetting.findUnique({ where: { shop } });
 
-    if (!aiSettings?.aiEnabled) {
+    if (!aiEnabledForPlan || !aiSettings?.aiEnabled) {
       return json({ answer: "AI-powered answers are currently disabled." });
+    }
+
+    const startOfDay = new Date();
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const aiUsageToday = await prisma.aiLog.count({ where: { shop, createdAt: { gte: startOfDay } } });
+
+    if (aiUsageToday >= planContext.aiDailyLimit) {
+      return json({ answer: "The daily AI answer limit has been reached. Please try again tomorrow." });
     }
 
     // 2. Get an offline admin client for the shop
@@ -78,6 +91,8 @@ export async function action({ request }) {
     const product = {
         title: productData.data?.product?.title,
         description: productData.data?.product?.descriptionHtml.replace(/<[^>]*>?/gm, '\n').trim(),
+        options: productData.data?.product?.options || [],
+        variants: productData.data?.product?.variants?.nodes || [],
     };
 
     // 5. Prepare the context object
@@ -89,7 +104,7 @@ export async function action({ request }) {
     };
 
     // 6. Generate the answer & Log the interaction
-    const answer = await generateAnswer(context);
+    const { answer, fullContext } = await generateAnswer(context);
     const noAnswer = answer.includes("couldn't find enough information");
 
     const log = await prisma.aiLog.create({
@@ -98,6 +113,7 @@ export async function action({ request }) {
         productId,
         customerQuestion,
         aiAnswer: answer,
+        fullContext,
         noAnswer,
       },
     });

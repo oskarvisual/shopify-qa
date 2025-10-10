@@ -20,78 +20,111 @@ function buildPrompt({ customerQuestion, product, previousQAs = [], aiSettings =
 
   const optionsText = product.options?.map(opt => `- ${opt.name}: ${opt.values.join(', ')}`).join('\n') || 'No options listed.';
 
+  // Build variants text with availability
+  const variantsText = product.variants && product.variants.length > 0
+    ? product.variants.map(v => `- ${v.title}: ${v.availableForSale ? 'Available' : 'Out of stock'}`).join('\n')
+    : 'No variant information available.';
+
   const previousQAsText = previousQAs.length > 0
-    ? previousQAs.map(qa => `Pregunta: ${qa.question}\nRespuesta: ${qa.answer}`).join('\n\n')
-    : 'No hay preguntas anteriores para este producto.';
+    ? previousQAs.map(qa => `Question: ${qa.question}\nAnswer: ${qa.answer}`).join('\n\n')
+    : 'No previous questions for this product.';
 
   return `
-Eres un asistente de soporte para una tienda online. Tu trabajo es responder preguntas de clientes de forma clara, precisa, y amigable, basándote únicamente en la información proporcionada a continuación.
+You are a support assistant for an online store. Your job is to answer customer questions clearly, accurately, and in a friendly manner, based solely on the information provided below.
 
 ---
 
-🔹 Información del producto:
+🔹 Product Information:
 
 ${productTitle}
 ${productDescription}
 
 ---
 
-🔹 Opciones Disponibles:
+🔹 Available Options:
 
 ${optionsText}
 
 ---
 
-🔹 Historial de preguntas y respuestas de este producto:
+🔹 Product Variants & Availability:
+
+${variantsText}
+
+---
+
+🔹 Previous Q&A history for this product:
 
 ${previousQAsText}
 
 ---
 
-🔹 Instrucciones del administrador para este producto o categoría:
+🔹 Administrator instructions for this product or category:
 
-${aiInstructions || 'No hay instrucciones adicionales.'}
-
----
-
-🔹 Pregunta del cliente:
-
-“${customerQuestion}”
+${aiInstructions || 'No additional instructions.'}
 
 ---
 
-📌 Reglas importantes:
+🔹 Customer Question:
 
-- No inventes información que no esté en los datos proporcionados.
-- Si la pregunta no puede responderse con certeza, responde solo:
+"${customerQuestion}"
+
+---
+
+📌 Important Rules:
+
+- Do not invent information that is not in the provided data.
+- If the question cannot be answered with certainty, respond only with:
   **"NO_RESPONSE_AVAILABLE"**
-- Usa un tono profesional y empático.
-- Responde en el mismo idioma en el que el cliente preguntó.
-- Mantén la respuesta breve (2–4 oraciones) pero completa.
+- Use a professional and empathetic tone.
+- Respond in the same language the customer asked in.
+- Keep the response brief (2–4 sentences) but complete.
 
 ---
 
-✍️ Responde a continuación:
+✍️ Your answer:
   `.trim();
 }
 
 /**
  * Generates an answer for a given question using OpenAI with rich context.
  * @param {object} context - The context for generating the answer.
- * @returns {Promise<string>} The AI-generated answer.
+ * @returns {Promise<{answer: string, fullContext: string}>} The AI-generated answer and the full context sent to the AI.
  */
 export async function generateAnswer(context) {
   if (!process.env.OPENAI_API_KEY) {
     console.error("OpenAI API key is not set in .env file.");
-    return "Error: AI functionality is not configured.";
+    return {
+      answer: "Error: AI functionality is not configured.",
+      fullContext: "Error: OpenAI API key not configured"
+    };
   }
 
   const prompt = buildPrompt(context);
   const { aiLanguage } = context.aiSettings || {};
 
   const languageInstruction = aiLanguage === 'auto'
-    ? 'Responde en el mismo idioma en el que el cliente preguntó.'
-    : `Responde siempre en ${aiLanguage}.`;
+    ? 'Always respond in the same language the customer asked in.'
+    : `Always respond in ${aiLanguage}.`;
+
+  const systemMessage = `You are an expert support assistant. Follow the rules and format provided. ${languageInstruction}`;
+
+  // Build full context for logging (includes system message and user prompt)
+  const fullContext = JSON.stringify({
+    model: "gpt-4o",
+    temperature: 0.5,
+    max_tokens: 2000,
+    messages: [
+      {
+        role: "system",
+        content: systemMessage
+      },
+      {
+        role: "user",
+        content: prompt,
+      },
+    ],
+  }, null, 2);
 
   try {
     const completion = await openai.chat.completions.create({
@@ -99,7 +132,7 @@ export async function generateAnswer(context) {
       messages: [
         {
           role: "system",
-          content: `Eres un asistente de soporte experto. Sigue las reglas y el formato proporcionado. ${languageInstruction}`
+          content: systemMessage
         },
         {
           role: "user",
@@ -107,18 +140,27 @@ export async function generateAnswer(context) {
         },
       ],
       temperature: 0.5, // Lower temperature for more factual answers
-      max_tokens: 250,
+      max_tokens: 2000,
     });
 
     const answer = completion.choices[0].message.content.trim();
 
     if (answer.includes("NO_RESPONSE_AVAILABLE")) {
-        return "I couldn't find enough information to answer this question based on the provided context.";
+        return {
+          answer: "I couldn't find enough information to answer this question based on the provided context.",
+          fullContext
+        };
     }
 
-    return answer;
+    return {
+      answer,
+      fullContext
+    };
   } catch (error) {
     console.error("Error generating AI answer:", error);
-    return "Sorry, there was an error generating an answer. Please try again later.";
+    return {
+      answer: "Sorry, there was an error generating an answer. Please try again later.",
+      fullContext: fullContext + `\n\nError: ${error.message}`
+    };
   }
 }

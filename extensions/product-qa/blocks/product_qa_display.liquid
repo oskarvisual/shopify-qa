@@ -34,6 +34,11 @@
     <div id="loading-more" class="loading-more" style="display: none;">Loading...</div>
   </div>
 
+  <!-- Powered By Branding (shown for FREE plan only) -->
+  <div id="qa-branding" class="qa-branding" style="display: none;">
+    <a href="#" target="_blank" rel="noopener" id="qa-branding-link"></a>
+  </div>
+
 </div>
 
 <style>
@@ -272,6 +277,28 @@
     width: 12px;
     height: 12px;
   }
+
+  /* Branding Styles */
+  .qa-branding {
+    text-align: center;
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid {{ block.settings.border_color | default: '#dee2e6' }};
+    font-size: 12px;
+    color: {{ block.settings.text_color | default: '#666666' }};
+    opacity: 0.8;
+  }
+
+  .qa-branding a {
+    color: {{ block.settings.text_color | default: '#666666' }};
+    text-decoration: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .qa-branding a:hover {
+    opacity: 0.6;
+    text-decoration: underline;
+  }
 </style>
 
 <script>
@@ -446,7 +473,32 @@
       }
     }
 
+    async function loadBranding() {
+      if (!shopDomain) return;
+      try {
+        const brandingUrl = `/apps/a/api/public/branding?shop=${encodeURIComponent(shopDomain)}`;
+        const response = await fetch(brandingUrl);
+        if (!response.ok) return;
+        const data = await response.json();
+
+        // Show branding only if showBranding is true (FREE plan)
+        if (data?.showBranding) {
+          const brandingContainer = document.getElementById('qa-branding');
+          const brandingLink = document.getElementById('qa-branding-link');
+
+          if (brandingContainer && brandingLink) {
+            brandingLink.textContent = `Powered by ${data.brandingName}`;
+            brandingLink.href = data.brandingUrl;
+            brandingContainer.style.display = 'block';
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to load branding info for Product Q&A display:', error);
+      }
+    }
+
     await loadTranslations();
+    await loadBranding();
     updateLoadingTexts();
     updateSearchPlaceholder();
     if (container) container.classList.remove('qa-translations-hidden');
@@ -513,27 +565,53 @@
 
         const response = await fetch(`/apps/a/api/vote?${params}`);
         const data = await response.json();
-        return data.hasVoted || false;
+        return {
+          hasVoted: data.hasVoted || false,
+          votes: data.votes || 0
+        };
       } catch (error) {
         console.warn('Failed to check vote status:', error);
-        return false;
+        return { hasVoted: false, votes: 0 };
       }
     }
 
     async function checkAllVoteStatuses() {
-      const voteButtons = document.querySelectorAll('.btn-vote:not(.voted):not(.voting)');
+      // Check ALL buttons, not just those without .voted class
+      const voteButtons = document.querySelectorAll('.btn-vote');
 
       for (const button of voteButtons) {
-        const questionId = button.closest('.qa-vote-form').dataset.questionId;
-        const hasVoted = await checkVoteStatus(questionId);
+        // Skip if button is currently in voting state
+        if (button.classList.contains('voting')) {
+          continue;
+        }
 
-        if (hasVoted) {
-          // Update button to voted state
-          const currentVotes = button.dataset.votes || 0;
+        const form = button.closest('.qa-vote-form');
+        if (!form) {
+          console.warn('Vote button found without parent form:', button);
+          continue;
+        }
+
+        const questionId = form.dataset.questionId;
+        if (!questionId) {
+          console.warn('Vote form found without questionId:', form);
+          continue;
+        }
+
+        const voteStatus = await checkVoteStatus(questionId);
+
+        if (voteStatus.hasVoted) {
+          // Update button to voted state with the correct vote count from API
           button.classList.add('voted');
           button.disabled = true;
-          button.dataset.votes = currentVotes;
-          button.innerHTML = voteButtonContent(displayTexts.voted, currentVotes);
+          button.dataset.votes = voteStatus.votes;
+          button.innerHTML = voteButtonContent(displayTexts.voted, voteStatus.votes);
+        } else {
+          // Remove voted class if somehow it was added but user hasn't actually voted
+          button.classList.remove('voted');
+          button.disabled = false;
+          // Update vote count even if user hasn't voted (in case it changed)
+          button.dataset.votes = voteStatus.votes;
+          button.innerHTML = voteButtonContent(displayTexts.helpful, voteStatus.votes);
         }
       }
     }
@@ -739,7 +817,7 @@
         body: formData
       })
       .then(response => response.json())
-      .then(data => {
+      .then(async (data) => {
         if (data.success) {
           // Update button to disabled/voted state
           button.classList.remove('voting');
@@ -750,12 +828,13 @@
         } else {
           // Check if error is "already voted" - if so, mark as voted
           if (data.error && data.error.includes('already voted')) {
-            // Update button to voted state
-            const currentVotes = button.dataset.votes || originalVotes;
+            // Fetch the current vote count from the server
+            const voteStatus = await checkVoteStatus(questionId);
             button.classList.remove('voting');
             button.classList.add('voted');
             button.disabled = true;
-            button.innerHTML = voteButtonContent(displayTexts.voted, currentVotes);
+            button.dataset.votes = voteStatus.votes;
+            button.innerHTML = voteButtonContent(displayTexts.voted, voteStatus.votes);
           } else {
             // Other error - restore button
             button.classList.remove('voting');

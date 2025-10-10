@@ -22,6 +22,8 @@ api_version = "2025-07"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+# Note: write_payments scope will be required for production billing
+# Currently not added because app needs to be approved for billing first
 scopes = "write_products,read_products"
 
 [auth]
