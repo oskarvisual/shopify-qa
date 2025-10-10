@@ -185,6 +185,7 @@ export const action = async ({ request }) => {
       aiHumanPrompt: formData.get("translationAiHumanPrompt"),
       aiHumanButton: formData.get("translationAiHumanButton"),
       aiBypassButton: formData.get("translationAiBypassButton"),
+      aiSuggestedAnswerLabel: formData.get("translationAiSuggestedAnswerLabel"),
       aiHelpfulButton: formData.get("translationAiHelpfulButton"),
       aiNotHelpfulButton: formData.get("translationAiNotHelpfulButton"),
     };
@@ -303,6 +304,7 @@ export default function SettingsPage() {
     translationAiHumanPrompt: translationSettings?.aiHumanPrompt || "",
     translationAiHumanButton: translationSettings?.aiHumanButton || "",
     translationAiBypassButton: translationSettings?.aiBypassButton || "",
+    translationAiSuggestedAnswerLabel: translationSettings?.aiSuggestedAnswerLabel || "",
     translationAiHelpfulButton: translationSettings?.aiHelpfulButton || "",
     translationAiNotHelpfulButton: translationSettings?.aiNotHelpfulButton || "",
   });
@@ -652,6 +654,7 @@ export default function SettingsPage() {
                       <TextField label="Ask Human Prompt Text" name="translationAiHumanPrompt" value={formState.translationAiHumanPrompt || ""} onChange={handleFormChange("translationAiHumanPrompt")} autoComplete="off" placeholder="Not the answer you were looking for?" />
                       <TextField label="Ask Human Button Text" name="translationAiHumanButton" value={formState.translationAiHumanButton || ""} onChange={handleFormChange("translationAiHumanButton")} autoComplete="off" placeholder="Ask a Human Expert" />
                       <TextField label="Bypass AI Link Text" name="translationAiBypassButton" value={formState.translationAiBypassButton || ""} onChange={handleFormChange("translationAiBypassButton")} autoComplete="off" placeholder="Or, ask a human" />
+                      <TextField label="Suggested Answer Label" name="translationAiSuggestedAnswerLabel" value={formState.translationAiSuggestedAnswerLabel || ""} onChange={handleFormChange("translationAiSuggestedAnswerLabel")} autoComplete="off" placeholder="Suggested Answer:" />
                       <TextField label="AI Helpful Button Text" name="translationAiHelpfulButton" value={formState.translationAiHelpfulButton || ""} onChange={handleFormChange("translationAiHelpfulButton")} autoComplete="off" placeholder="Helpful" />
                       <TextField label="AI Not Helpful Button Text" name="translationAiNotHelpfulButton" value={formState.translationAiNotHelpfulButton || ""} onChange={handleFormChange("translationAiNotHelpfulButton")} autoComplete="off" placeholder="Not Helpful" />
                     </>

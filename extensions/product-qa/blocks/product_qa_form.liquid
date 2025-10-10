@@ -10,7 +10,7 @@
     <h3>{{ block.settings.title }}</h3>
     <form id="qa-form" class="qa-form" onsubmit="return false;">
       <div id="qa-ai-response-container" style="display: none;">
-        <p><strong>Suggested Answer:</strong></p>
+        <p><strong id="qa-suggested-answer-label">Suggested Answer:</strong></p>
         <div id="qa-ai-answer"></div>
         <div class="qa-vote-container">
           <button type="button" class="btn-vote helpful"></button>
@@ -58,7 +58,7 @@
       <h3 id="qa-modal-title">{{ block.settings.ask_modal_title | default: "Ask a Question" }}</h3>
       <form id="qa-form-modal" class="qa-form" onsubmit="return false;">
         <div id="qa-ai-response-container-modal" style="display: none;">
-          <p><strong>Suggested Answer:</strong></p>
+          <p><strong id="qa-suggested-answer-label-modal">Suggested Answer:</strong></p>
           <div id="qa-ai-answer-modal"></div>
           <div class="qa-vote-container-modal">
             <button type="button" class="btn-vote helpful"></button>
@@ -145,6 +145,7 @@ document.addEventListener('DOMContentLoaded', function() {
         aiHumanPrompt: 'Not the answer you were looking for?',
         aiHumanButton: 'Ask a Human Expert',
         aiBypassButton: 'Or, ask a human',
+        aiSuggestedAnswerLabel: 'Suggested Answer:',
         aiHelpfulButton: 'Helpful',
         aiNotHelpfulButton: 'Not Helpful'
     };
@@ -170,6 +171,7 @@ document.addEventListener('DOMContentLoaded', function() {
         humanFormFields: document.getElementById('qa-human-form-fields' + prefix),
         aiResponseContainer: document.getElementById('qa-ai-response-container' + prefix),
         aiAnswerDiv: document.getElementById('qa-ai-answer' + prefix),
+        suggestedAnswerLabel: document.getElementById('qa-suggested-answer-label' + prefix),
         voteContainer: formElement.querySelector('.qa-vote-container' + prefix),
         submitBtn: document.getElementById('qa-submit-btn' + prefix),
         askAiBtn: document.getElementById('qa-ask-ai-btn' + prefix),
@@ -326,12 +328,16 @@ document.addEventListener('DOMContentLoaded', function() {
             ...(translations.aiHumanPrompt && { aiHumanPrompt: translations.aiHumanPrompt }),
             ...(translations.aiHumanButton && { aiHumanButton: translations.aiHumanButton }),
             ...(translations.aiBypassButton && { aiBypassButton: translations.aiBypassButton }),
+            ...(translations.aiSuggestedAnswerLabel && { aiSuggestedAnswerLabel: translations.aiSuggestedAnswerLabel }),
             ...(translations.aiHelpfulButton && { aiHelpfulButton: translations.aiHelpfulButton }),
             ...(translations.aiNotHelpfulButton && { aiNotHelpfulButton: translations.aiNotHelpfulButton }),
         };
 
         if (elements.submitBtn) {
             elements.submitBtn.textContent = elements.submitBtn.dataset.defaultText;
+        }
+        if (elements.suggestedAnswerLabel) {
+            elements.suggestedAnswerLabel.textContent = texts.aiSuggestedAnswerLabel;
         }
         if (elements.askAiBtn) {
             elements.askAiBtn.textContent = texts.aiSubmitButton;
