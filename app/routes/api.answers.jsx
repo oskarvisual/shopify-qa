@@ -21,11 +21,24 @@ export const action = async ({ request }) => {
 
   try {
     if (method === "POST") {
-      const questionId = formData.get("questionId");
-      const authorName = formData.get("authorName");
-      const authorEmail = formData.get("authorEmail");
-      const answer = formData.get("answer");
+      const questionId = (formData.get("questionId") || "").trim();
+      const authorName = (formData.get("authorName") || "").trim();
+      const authorEmail = (formData.get("authorEmail") || "").trim();
+      const answer = (formData.get("answer") || "").trim();
       const notifyCustomer = formData.get("notifyCustomer") === "true";
+
+      if (!questionId) {
+        return json({ error: "Question is required." }, { status: 400 });
+      }
+      if (!answer) {
+        return json({ error: "Answer text is required." }, { status: 400 });
+      }
+      if (!authorName) {
+        return json({ error: "Author name is required." }, { status: 400 });
+      }
+      if (!authorEmail) {
+        return json({ error: "Author email is required." }, { status: 400 });
+      }
 
       const newAnswer = await prisma.answer.create({
         data: {
@@ -67,8 +80,12 @@ export const action = async ({ request }) => {
     }
 
     if (method === "PUT") {
-      const id = formData.get("id");
+      const id = (formData.get("id") || "").trim();
       const isPublished = formData.get("isPublished") === "true";
+
+      if (!id) {
+        return json({ error: "Answer identifier is required." }, { status: 400 });
+      }
 
       const updatedAnswer = await prisma.answer.update({
         where: { id, shop: session.shop },

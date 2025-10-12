@@ -61,12 +61,26 @@ export const action = async ({ request }) => {
   const formData = await request.formData();
   const productId = formData.get("productId");
   const shop = formData.get("shop");
-  const customerName = formData.get("customerName");
-  const customerEmail = formData.get("customerEmail");
-  const question = formData.get("question");
+  const rawCustomerName = formData.get("customerName");
+  const rawCustomerEmail = formData.get("customerEmail");
+  const question = (formData.get("question") || "").trim();
 
   if (!productId || !shop || !question) {
     const response = json({ error: "Missing required fields" }, { status: 400 });
+    return cors(request, response);
+  }
+
+  const customerName = rawCustomerName ? rawCustomerName.trim() : null;
+  const customerEmail = rawCustomerEmail ? rawCustomerEmail.trim() : null;
+
+  if (!customerName || !customerEmail) {
+    const response = json({ error: "Name and email are required." }, { status: 400 });
+    return cors(request, response);
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(customerEmail)) {
+    const response = json({ error: "Please provide a valid email address." }, { status: 400 });
     return cors(request, response);
   }
 

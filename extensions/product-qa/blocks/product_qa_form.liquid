@@ -165,6 +165,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const isModal = formId.includes('modal');
       const prefix = isModal ? '-modal' : '';
       let currentAiLogId = null;
+      let humanMode = false;
 
       const elements = {
         questionContainer: document.getElementById('qa-question-container' + prefix),
@@ -180,7 +181,9 @@ document.addEventListener('DOMContentLoaded', function() {
         questionTextarea: document.getElementById('question' + prefix),
         formMessage: document.getElementById('form-message' + prefix),
         charCounter: formElement.querySelector('.char-counter' + prefix),
-        humanPrompt: document.getElementById('qa-human-prompt' + prefix)
+        humanPrompt: document.getElementById('qa-human-prompt' + prefix),
+        customerNameInput: formElement.querySelector('input[name="customerName"]'),
+        customerEmailInput: formElement.querySelector('input[name="customerEmail"]')
       };
 
       if (!elements.questionTextarea) return null;
@@ -214,6 +217,7 @@ document.addEventListener('DOMContentLoaded', function() {
         elements.askAiBtn.style.display = 'none';
         elements.bypassAiBtn.style.display = 'none';
         elements.submitBtn.style.display = 'inline-block';
+        humanMode = true;
       }
 
       function setInitialState(aiEnabled) {
@@ -222,7 +226,9 @@ document.addEventListener('DOMContentLoaded', function() {
           elements.bypassAiBtn.style.display = 'inline-block';
           elements.submitBtn.style.display = 'none';
           elements.humanFormFields.style.display = 'none';
+          humanMode = false;
         } else {
+          humanMode = true;
           showHumanForm();
         }
       }
@@ -261,11 +267,12 @@ document.addEventListener('DOMContentLoaded', function() {
           const data = await response.json();
           currentAiLogId = data.aiLogId;
 
-          if (data.error || !data.answer || data.answer.includes("couldn't find enough information")) {
-            showMessage(data.error || 'No immediate answer available. Please ask a human expert.', 'error');
+          if (data.error || !data.answer || !data.message) {
+            const fallbackMessage = data.error || data.message || 'No immediate answer available. Please ask a human expert.';
+            showMessage(fallbackMessage, 'error');
             showHumanForm();
           } else {
-            elements.aiAnswerDiv.textContent = data.answer;
+            elements.aiAnswerDiv.textContent = data.message;
             elements.aiResponseContainer.style.display = 'block';
             elements.questionContainer.style.display = 'none';
             elements.askAiBtn.style.display = 'none';
@@ -283,6 +290,44 @@ document.addEventListener('DOMContentLoaded', function() {
 
       elements.submitBtn.addEventListener('click', function(e) {
         e.preventDefault();
+
+        const trimmedQuestion = elements.questionTextarea.value.trim();
+        if (!trimmedQuestion) {
+          showMessage('Please enter a question.', 'error');
+          elements.questionTextarea.focus();
+          return;
+        }
+        elements.questionTextarea.value = trimmedQuestion;
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (humanMode) {
+          if (elements.customerNameInput) {
+            const nameValue = elements.customerNameInput.value.trim();
+            if (!nameValue) {
+              showMessage('Please enter your name.', 'error');
+              elements.customerNameInput.focus();
+              return;
+            }
+            elements.customerNameInput.value = nameValue;
+          }
+
+          if (elements.customerEmailInput) {
+            const emailValue = elements.customerEmailInput.value.trim();
+            if (!emailValue) {
+              showMessage('Please enter your email.', 'error');
+              elements.customerEmailInput.focus();
+              return;
+            }
+            if (!emailRegex.test(emailValue)) {
+              showMessage('Please enter a valid email address.', 'error');
+              elements.customerEmailInput.focus();
+              return;
+            }
+            elements.customerEmailInput.value = emailValue;
+          }
+        }
+
         const formData = new FormData(formElement);
         elements.submitBtn.disabled = true;
         elements.submitBtn.textContent = texts.submitting;

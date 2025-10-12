@@ -27,6 +27,7 @@ import { usePlanFeature } from "../lib/plan-context";
 import { PlanFeature, planHasFeature } from "../lib/plans";
 import { getSubscriptionPlanContext } from "../lib/plans.server";
 const CHARACTER_LIMIT = 500;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const GET_PRODUCT_HANDLE_AND_SHOP_QUERY = `
   query getProductHandleAndShop($productId: ID!) {
     product(id: $productId) {
@@ -189,13 +190,26 @@ export const action = async ({ request, params }) => {
       return json({ error: "Failed to delete question" }, { status: 500 });
     }
   } else if (actionType === "addAnswer") {
-    const answerText = formData.get("answerText");
+    const answerText = (formData.get("answerText") || "").trim();
+    const authorName = (formData.get("authorName") || "").trim();
+    const authorEmail = (formData.get("authorEmail") || "").trim();
+    const notifyUser = formData.get("notifyUser") === "true";
+
+    if (!answerText) {
+      return json({ error: "Answer text is required." }, { status: 400 });
+    }
     if (answerText.length > CHARACTER_LIMIT) {
       return json({ error: `Answer cannot exceed ${CHARACTER_LIMIT} characters.` }, { status: 400 });
     }
-    const authorName = formData.get("authorName");
-    const authorEmail = formData.get("authorEmail");
-    const notifyUser = formData.get("notifyUser") === "true";
+    if (!authorName) {
+      return json({ error: "Author name is required." }, { status: 400 });
+    }
+    if (!authorEmail) {
+      return json({ error: "Author email is required." }, { status: 400 });
+    }
+    if (!EMAIL_REGEX.test(authorEmail)) {
+      return json({ error: "Author email must be valid." }, { status: 400 });
+    }
 
     try {
       console.log('Creating answer with data:', { shop, questionId, answerText, authorName, authorEmail });
@@ -240,14 +254,30 @@ export const action = async ({ request, params }) => {
       return json({ error: "Failed to add answer: " + error.message }, { status: 500 });
     }
   } else if (actionType === "updateAnswer") {
-    const answerText = formData.get("answerText");
+    const answerText = (formData.get("answerText") || "").trim();
+    const answerId = formData.get("answerId");
+    const authorName = (formData.get("authorName") || "").trim();
+    const authorEmail = (formData.get("authorEmail") || "").trim();
+    const isPublished = formData.get("isPublished") === "true";
+
+    if (!answerId) {
+      return json({ error: "Answer identifier is required." }, { status: 400 });
+    }
+    if (!answerText) {
+      return json({ error: "Answer text is required." }, { status: 400 });
+    }
     if (answerText.length > CHARACTER_LIMIT) {
       return json({ error: `Answer cannot exceed ${CHARACTER_LIMIT} characters.` }, { status: 400 });
     }
-    const answerId = formData.get("answerId");
-    const authorName = formData.get("authorName");
-    const authorEmail = formData.get("authorEmail");
-    const isPublished = formData.get("isPublished") === "true";
+    if (!authorName) {
+      return json({ error: "Author name is required." }, { status: 400 });
+    }
+    if (!authorEmail) {
+      return json({ error: "Author email is required." }, { status: 400 });
+    }
+    if (!EMAIL_REGEX.test(authorEmail)) {
+      return json({ error: "Author email must be valid." }, { status: 400 });
+    }
 
     try {
       const updatedAnswer = await prisma.answer.update({
@@ -316,6 +346,7 @@ export default function ViewQuestionPage() {
   // Banner state
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [showErrorBanner, setShowErrorBanner] = useState(false);
+  const [validationError, setValidationError] = useState("");
 
   const handleGenerateAnswer = async () => {
     if (!canUseAdminAi || !aiSettings?.aiEnabled) {
@@ -341,8 +372,10 @@ export default function ViewQuestionPage() {
       }
 
       const data = await response.json();
-      if (data.answer) {
-        setAnswerText(data.answer);
+      if (data.answer && data.message) {
+        setAnswerText(data.message);
+      } else if (!data.answer && data.message) {
+        console.warn('AI did not return a suggested answer:', data.message);
       }
       if (data.error) {
         // You could show a toast or banner here
@@ -362,6 +395,7 @@ export default function ViewQuestionPage() {
     setAnswerEmail("admin@store.com");
     setAnswerPublished(true);
     setNotifyUser(true);
+    setValidationError("");
     setShowAnswerModal(true);
   }, []);
 
@@ -376,9 +410,11 @@ export default function ViewQuestionPage() {
     if (actionData?.success) {
       setShowSuccessBanner(true);
       setShowErrorBanner(false);
+      setValidationError("");
     }
     if (actionData?.error) {
       setShowErrorBanner(true);
+      setValidationError(actionData.error);
       setShowSuccessBanner(false);
     }
   }, [actionData]);
@@ -412,6 +448,42 @@ export default function ViewQuestionPage() {
   };
 
   const handleAnswerSubmit = () => {
+    const trimmedAnswer = answerText.trim();
+    const trimmedAuthor = answerAuthor.trim();
+    const trimmedEmail = answerEmail.trim();
+
+    if (!trimmedAnswer) {
+      setValidationError("Answer text is required.");
+      setShowErrorBanner(true);
+      setShowSuccessBanner(false);
+      return;
+    }
+    if (trimmedAnswer.length > CHARACTER_LIMIT) {
+      setValidationError(`Answer cannot exceed ${CHARACTER_LIMIT} characters.`);
+      setShowErrorBanner(true);
+      setShowSuccessBanner(false);
+      return;
+    }
+    if (!trimmedAuthor) {
+      setValidationError("Author name is required.");
+      setShowErrorBanner(true);
+      setShowSuccessBanner(false);
+      return;
+    }
+    if (!trimmedEmail) {
+      setValidationError("Author email is required.");
+      setShowErrorBanner(true);
+      setShowSuccessBanner(false);
+      return;
+    }
+    if (!EMAIL_REGEX.test(trimmedEmail)) {
+      setValidationError("Author email must be valid.");
+      setShowErrorBanner(true);
+      setShowSuccessBanner(false);
+      return;
+    }
+
+    setValidationError("");
     const formData = new FormData();
     if (editingAnswer) {
       formData.append("actionType", "updateAnswer");
@@ -419,9 +491,9 @@ export default function ViewQuestionPage() {
     } else {
       formData.append("actionType", "addAnswer");
     }
-    formData.append("answerText", answerText);
-    formData.append("authorName", answerAuthor);
-    formData.append("authorEmail", answerEmail);
+    formData.append("answerText", trimmedAnswer);
+    formData.append("authorName", trimmedAuthor);
+    formData.append("authorEmail", trimmedEmail);
     formData.append("isPublished", answerPublished);
     formData.append("notifyUser", notifyUser);
     submit(formData, { method: "post" });
@@ -473,9 +545,18 @@ export default function ViewQuestionPage() {
     </Banner>
   );
 
-  const errorBanner = showErrorBanner && actionData?.error && (
-    <Banner title="Error" tone="critical" onDismiss={() => setShowErrorBanner(false)}>
-      <p>{actionData.error}</p>
+  const errorMessage = validationError || actionData?.error;
+
+  const errorBanner = showErrorBanner && errorMessage && (
+    <Banner
+      title="Error"
+      tone="critical"
+      onDismiss={() => {
+        setShowErrorBanner(false);
+        setValidationError("");
+      }}
+    >
+      <p>{errorMessage}</p>
     </Banner>
   );
 

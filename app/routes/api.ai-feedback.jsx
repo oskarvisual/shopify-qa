@@ -1,6 +1,8 @@
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { dispatchWebhookAutomation } from "../lib/automation.server";
+import { getSubscriptionPlanContext } from "../lib/plans.server";
 
 export const action = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -50,42 +52,46 @@ export const action = async ({ request }) => {
       });
     }
 
-    const webhookConfig = await prisma.config.findUnique({ where: { key: "admin.webhook_ai_feedback" } });
-    const webhookUrl = webhookConfig?.value?.trim();
+    const webhookUrl = process.env.AUTOMATIONS_AI_FEEDBACK_WEBHOOK_URL?.trim();
 
     if (webhookUrl) {
-      try {
-        // Fetch the AI log with full context for the webhook
-        const aiLog = await prisma.aiLog.findUnique({
-          where: { id: aiLogId },
-          select: {
-            id: true,
-            shop: true,
-            productId: true,
-            customerQuestion: true,
-            aiAnswer: true,
-            fullContext: true,
-            vote: true,
-            askedHuman: true,
-            noAnswer: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        });
+      const aiLog = await prisma.aiLog.findUnique({
+        where: { id: aiLogId },
+        select: {
+          id: true,
+          shop: true,
+          productId: true,
+          customerQuestion: true,
+          aiAnswer: true,
+          fullContext: true,
+          vote: true,
+          askedHuman: true,
+          noAnswer: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
 
-        await fetch(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            event: isUpdate ? "ai_feedback.updated" : "ai_feedback.created",
-            shop,
-            feedback,
-            aiLog,
-          }),
-        });
-      } catch (webhookError) {
-        console.error(`Failed to notify AI feedback webhook at ${webhookUrl}:`, webhookError);
-      }
+      const planContext = await getSubscriptionPlanContext({ shop });
+
+      await dispatchWebhookAutomation({
+        shop,
+        topic: "ai_feedback",
+        target: webhookUrl,
+        payload: {
+          event: isUpdate ? "ai_feedback.updated" : "ai_feedback.created",
+          shop,
+          feedback,
+          aiLog,
+        },
+        headers: {
+          "Content-Type": "application/json",
+        },
+        meta: {
+          plan: planContext.plan,
+          features: planContext.features,
+        },
+      });
     }
 
     return json({ success: true, feedback });

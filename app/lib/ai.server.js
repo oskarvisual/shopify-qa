@@ -1,166 +1,160 @@
-import { OpenAI } from "openai";
+const DEFAULT_NO_ANSWER_MESSAGE =
+  "I couldn't find enough information to answer this question based on the provided context.";
+const DEFAULT_ERROR_MESSAGE =
+  "Sorry, there was an error generating an answer. Please try again later.";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+function buildWebhookPayload(context = {}) {
+  const {
+    customerQuestion,
+    product,
+    aiSettings = {},
+    shop,
+    productId,
+    questionId,
+    store,
+    planContext,
+  } = context;
 
-/**
- * Builds the prompt for the AI based on provided context.
- * @param {object} context - The context for generating the answer.
- * @param {string} context.customerQuestion - The customer's question.
- * @param {object} context.product - The product details.
- * @param {Array} context.previousQAs - Previous questions and answers for the product.
- * @param {object} context.aiSettings - The AI settings from the admin.
- * @returns {string} The fully constructed prompt.
- */
-function buildPrompt({ customerQuestion, product, previousQAs = [], aiSettings = {} }) {
-  const productTitle = product?.title || 'N/A';
-  const productDescription = product?.description || 'No description available.';
-  const { aiInstructions } = aiSettings;
+  const appId =
+    process.env.AUTOMATIONS_APP_ID ||
+    process.env.SHOPIFY_APP_HANDLE ||
+    process.env.SHOPIFY_API_KEY ||
+    null;
 
-  const optionsText = product.options?.map(opt => `- ${opt.name}: ${opt.values.join(', ')}`).join('\n') || 'No options listed.';
+  const normalizedProduct = {
+    title: product?.title || null,
+    description: product?.description || null,
+    options: product?.options || [],
+    variants: product?.variants || [],
+  };
 
-  // Build variants text with availability
-  const variantsText = product.variants && product.variants.length > 0
-    ? product.variants.map(v => `- ${v.title}: ${v.availableForSale ? 'Available' : 'Out of stock'}`).join('\n')
-    : 'No variant information available.';
+  const hasStoreData = Boolean(
+    store &&
+      Object.values(store).some((value) => {
+        if (Array.isArray(value)) {
+          return value.length > 0;
+        }
+        if (value && typeof value === "object") {
+          return Object.values(value).some((nested) => {
+            if (Array.isArray(nested)) {
+              return nested.length > 0;
+            }
+            return Boolean(nested);
+          });
+        }
+        return Boolean(value);
+      }),
+  );
 
-  const previousQAsText = previousQAs.length > 0
-    ? previousQAs.map(qa => `Question: ${qa.question}\nAnswer: ${qa.answer}`).join('\n\n')
-    : 'No previous questions for this product.';
+  return {
+    appId,
+    shop: shop || null,
+    productId: productId || null,
+    questionId: questionId || null,
+    responseLanguage: aiSettings?.aiLanguage || "auto",
+    customInstructions: aiSettings?.aiInstructions || "",
+    customerQuestion: customerQuestion || "",
+    product: normalizedProduct,
+    plan: planContext?.plan || null,
+    planFeatures: planContext?.features || null,
+    ...(hasStoreData ? { store } : {}),
+  };
+}
 
-  return `
-You are a support assistant for an online store. Your job is to answer customer questions clearly, accurately, and in a friendly manner, based solely on the information provided below.
+function buildRequestHeaders() {
+  const headers = { "Content-Type": "application/json" };
 
----
+  const token = process.env.AUTOMATIONS_TOKEN?.trim();
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
 
-🔹 Product Information:
+  return headers;
+}
 
-${productTitle}
-${productDescription}
-
----
-
-🔹 Available Options:
-
-${optionsText}
-
----
-
-🔹 Product Variants & Availability:
-
-${variantsText}
-
----
-
-🔹 Previous Q&A history for this product:
-
-${previousQAsText}
-
----
-
-🔹 Administrator instructions for this product or category:
-
-${aiInstructions || 'No additional instructions.'}
-
----
-
-🔹 Customer Question:
-
-"${customerQuestion}"
-
----
-
-📌 Important Rules:
-
-- Do not invent information that is not in the provided data.
-- If the question cannot be answered with certainty, respond only with:
-  **"NO_RESPONSE_AVAILABLE"**
-- Use a professional and empathetic tone.
-- Respond in the same language the customer asked in.
-- Keep the response brief (2–4 sentences) but complete.
-
----
-
-✍️ Your answer:
-  `.trim();
+function normaliseAnswerPayload({ payload, response, error }) {
+  return JSON.stringify(
+    {
+      payload,
+      ...(response ? { response } : {}),
+      ...(error ? { error } : {}),
+    },
+    null,
+    2,
+  );
 }
 
 /**
- * Generates an answer for a given question using OpenAI with rich context.
+ * Generates an answer for a given question by delegating to the n8n webhook.
  * @param {object} context - The context for generating the answer.
- * @returns {Promise<{answer: string, fullContext: string}>} The AI-generated answer and the full context sent to the AI.
+ * @returns {Promise<{message: string, hasAnswer: boolean, fullContext: string, noAnswer: boolean}>}
  */
 export async function generateAnswer(context) {
-  if (!process.env.OPENAI_API_KEY) {
-    console.error("OpenAI API key is not set in .env file.");
+  const webhookUrl = process.env.AUTOMATIONS_AI_WEBHOOK_URL;
+
+  if (!webhookUrl) {
+    console.error("AI automation webhook URL is not set in environment variables.");
     return {
-      answer: "Error: AI functionality is not configured.",
-      fullContext: "Error: OpenAI API key not configured"
+      message: "Error: AI functionality is not configured.",
+      hasAnswer: false,
+      fullContext: "Error: AI webhook URL not configured",
+      noAnswer: true,
     };
   }
 
-  const prompt = buildPrompt(context);
-  const { aiLanguage } = context.aiSettings || {};
-
-  const languageInstruction = aiLanguage === 'auto'
-    ? 'Always respond in the same language the customer asked in.'
-    : `Always respond in ${aiLanguage}.`;
-
-  const systemMessage = `You are an expert support assistant. Follow the rules and format provided. ${languageInstruction}`;
-
-  // Build full context for logging (includes system message and user prompt)
-  const fullContext = JSON.stringify({
-    model: "gpt-4o",
-    temperature: 0.5,
-    max_tokens: 2000,
-    messages: [
-      {
-        role: "system",
-        content: systemMessage
-      },
-      {
-        role: "user",
-        content: prompt,
-      },
-    ],
-  }, null, 2);
+  const payload = buildWebhookPayload(context);
+  const headers = buildRequestHeaders();
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: systemMessage
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      temperature: 0.5, // Lower temperature for more factual answers
-      max_tokens: 2000,
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
     });
 
-    const answer = completion.choices[0].message.content.trim();
-
-    if (answer.includes("NO_RESPONSE_AVAILABLE")) {
-        return {
-          answer: "I couldn't find enough information to answer this question based on the provided context.",
-          fullContext
-        };
+    if (!response.ok) {
+      throw new Error(`Webhook responded with status ${response.status}`);
     }
 
+    const data = await response.json().catch(() => ({}));
+
+    const { message: rawMessage } = data;
+    const hasAnswerFlag = typeof data.answer === "boolean";
+    const rawAnswerString = typeof data.answer === "string" ? data.answer.trim() : "";
+
+    let message = typeof rawMessage === "string" ? rawMessage.trim() : "";
+    let hasAnswer = false;
+
+    if (hasAnswerFlag) {
+      hasAnswer = data.answer === true;
+      if (!message && hasAnswer) {
+        message = DEFAULT_ERROR_MESSAGE;
+      }
+    } else if (rawAnswerString) {
+      const isNoAnswerToken = rawAnswerString.toUpperCase() === "NO_RESPONSE_AVAILABLE";
+      hasAnswer = !isNoAnswerToken;
+      message = hasAnswer ? rawAnswerString : DEFAULT_NO_ANSWER_MESSAGE;
+    }
+
+    if (!hasAnswer && !message) {
+      message = DEFAULT_NO_ANSWER_MESSAGE;
+    }
+
+    const noAnswer = typeof data.noAnswer === "boolean" ? data.noAnswer : !hasAnswer;
+
     return {
-      answer,
-      fullContext
+      message,
+      hasAnswer,
+      fullContext: normaliseAnswerPayload({ payload, response: data }),
+      noAnswer,
     };
   } catch (error) {
-    console.error("Error generating AI answer:", error);
+    console.error("Error generating AI answer via webhook:", error);
     return {
-      answer: "Sorry, there was an error generating an answer. Please try again later.",
-      fullContext: fullContext + `\n\nError: ${error.message}`
+      message: DEFAULT_ERROR_MESSAGE,
+      hasAnswer: false,
+      fullContext: normaliseAnswerPayload({ payload, error: error.message }),
+      noAnswer: true,
     };
   }
 }

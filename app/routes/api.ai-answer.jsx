@@ -2,6 +2,7 @@ import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { generateAnswer } from "../lib/ai.server.js";
+import { getStoreContext } from "../lib/store-context.server.js";
 import { PlanFeature, planHasFeature } from "../lib/plans";
 import { getSubscriptionPlanContext } from "../lib/plans.server";
 
@@ -45,39 +46,7 @@ export async function action({ request }) {
       return json({ answer: "AI-powered answers are currently disabled by the administrator." });
     }
 
-    const startOfDay = new Date();
-    startOfDay.setUTCHours(0, 0, 0, 0);
-    const aiUsageToday = await prisma.aiLog.count({ where: { shop, createdAt: { gte: startOfDay } } });
-
-    if (aiUsageToday >= planContext.aiDailyLimit) {
-      return json({ answer: "The daily AI answer limit has been reached. Please try again tomorrow." });
-    }
-
-    // 2. Fetch other Q&As for this product for context
-    const otherQuestions = await prisma.question.findMany({
-      where: {
-        productId: productId,
-        id: { not: questionId },
-        isPublished: true,
-        answers: { some: { isPublished: true } },
-      },
-      include: {
-        answers: {
-          where: { isPublished: true },
-          orderBy: { createdAt: 'desc' },
-          take: 1, // Take the most recent published answer
-        },
-      },
-      take: 5, // Limit to 5 other questions for context
-      orderBy: { createdAt: 'desc' },
-    });
-
-    const previousQAs = otherQuestions.map(q => ({
-      question: q.question,
-      answer: q.answers[0]?.answer || 'No answer available.',
-    }));
-
-    // 3. Fetch Product Details from Shopify API
+    // 2. Fetch Product Details from Shopify API
     const productResponse = await admin.graphql(GET_PRODUCT_DETAILS_QUERY, {
       variables: { id: `gid://shopify/Product/${productId}` },
     });
@@ -89,18 +58,25 @@ export async function action({ request }) {
         variants: productData.data?.product?.variants?.nodes || [],
     };
 
+    // 3. Fetch store-level context (payments, shipping, etc.)
+    const store = await getStoreContext({ shop, admin });
+
     // 4. Prepare the context object
     const context = {
       customerQuestion,
       product,
-      previousQAs,
       aiSettings,
+      shop,
+      productId,
+      questionId,
+      store,
+      planContext,
     };
 
     // 5. Generate the answer
-    const { answer, fullContext } = await generateAnswer(context);
+    const { message, hasAnswer } = await generateAnswer(context);
 
-    return json({ answer });
+    return json({ answer: hasAnswer, message });
   } catch (error) {
     console.error("AI Answer API Error:", error);
     return json({ error: "Failed to generate AI answer." }, { status: 500 });

@@ -132,23 +132,6 @@ model Config {
   @@index([key])
 }
 
-model EmailLog {
-  id        String   @id @default(cuid())
-  shop      String
-  to        String
-  subject   String   @db.Text
-  body      String   @db.LongText
-  smtpHost  String?
-  smtpPort  Int?
-  smtpUser  String?
-  status    String
-  response  String?  @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([shop])
-}
-
 model AiSetting {
   id              String    @id @default(cuid())
   shop            String    @unique

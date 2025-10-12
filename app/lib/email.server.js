@@ -1,5 +1,6 @@
-import nodemailer from "nodemailer";
 import prisma from "../db.server";
+import { dispatchEmailAutomation } from "./automation.server";
+import { getSubscriptionPlanContext } from "./plans.server";
 
 function formatShopName(shop) {
   if (!shop) {
@@ -30,20 +31,25 @@ function getAdminAppUrl(shop, path = "") {
   return `https://${shop}/admin/apps/${SHOPIFY_APP_HANDLE}${normalizedPath}`;
 }
 
-/**
- * Replaces template variables with actual values
- * @param {string} template - The template string containing {{variable}} placeholders
- * @param {object} variables - Object with key-value pairs for replacement
- * @returns {string} The template with variables replaced
- */
 function replaceEmailVariables(template, variables) {
   if (!template) return "";
   let result = template;
-  Object.keys(variables).forEach(key => {
+  Object.keys(variables).forEach((key) => {
     const value = variables[key] || "";
-    result = result.replace(new RegExp(`{{${key}}}`, 'g'), value);
+    result = result.replace(new RegExp(`{{${key}}}`, "g"), value);
   });
   return result;
+}
+
+function getDefaultSmtpConfig() {
+  return {
+    host: process.env.SMTP_HOST || null,
+    port: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : null,
+    secure: (process.env.SMTP_SECURE || "true") === "true",
+    user: process.env.SMTP_USER || null,
+    pass: process.env.SMTP_PASS || null,
+    fromEmail: process.env.SMTP_FROM_EMAIL || "noreply@example.com",
+  };
 }
 
 /**
@@ -54,134 +60,58 @@ function replaceEmailVariables(template, variables) {
  */
 
 /**
- * Sends an email using the configured SMTP settings for a given shop.
- * @param {string} shop - The shop's domain.
- * @param {MailOptions} mailOptions - The email options.
+ * Enqueue an email to n8n for delivery.
+ * @param {string} shop
+ * @param {MailOptions} mailOptions
+ * @param {{settings?: import("@prisma/client").EmailSetting|null, metadata?: object}} options
  */
-export async function sendEmail(shop, mailOptions) {
-  const emailLog = await prisma.emailLog.create({
-    data: {
-      shop,
-      to: mailOptions.to,
-      subject: mailOptions.subject,
-      body: mailOptions.html,
-      status: "PENDING",
-    },
-  });
-
-  const settings = await prisma.emailSetting.findUnique({ where: { shop } });
-
-  // 1. Check if notifications are enabled at all
-  if (!settings?.notificationsEnabled) {
-    console.log(`Email notifications are disabled for ${shop}. Aborting send.`);
-    await prisma.emailLog.update({
-      where: { id: emailLog.id },
-      data: {
-        status: "DISABLED",
-        response: "Email notifications are disabled for this shop.",
-      },
-    });
+export async function sendEmail(shop, mailOptions, options = {}) {
+  if (!mailOptions?.to) {
+    console.warn("sendEmail called without recipient; skipping.");
     return;
   }
 
-  let transporter;
-  let logData;
+  const { settings: providedSettings = null, metadata = {} } = options;
+  const settings =
+    providedSettings ?? (await prisma.emailSetting.findUnique({ where: { shop } }));
 
-  try {
-    // 2. Configure the transporter (email sending client)
-    if (settings.smtpProvider === "CUSTOM" && settings.smtpHost) {
-      // Use custom SMTP settings from the database
-      logData = {
-        smtpHost: settings.smtpHost,
-        smtpPort: settings.smtpPort,
-        smtpUser: settings.smtpUser,
-      };
-      transporter = nodemailer.createTransport({
-        host: settings.smtpHost,
-        port: settings.smtpPort,
-        secure: settings.smtpSecure,
-        auth: {
-          user: settings.smtpUser,
-          pass: settings.smtpPass, // TODO: Decrypt this value
-        },
-      });
-    } else {
-      // Use default SMTP settings from .env variables
-      if (!process.env.SMTP_HOST) {
-        console.error("Default SMTP settings are not configured in .env. Cannot send email.");
-        await prisma.emailLog.update({
-          where: { id: emailLog.id },
-          data: {
-            status: "FAILED",
-            response: "Default SMTP settings are not configured in .env.",
-          },
-        });
-        return;
-      }
-      logData = {
-        smtpHost: process.env.SMTP_HOST,
-        smtpPort: Number(process.env.SMTP_PORT || 587),
-        smtpUser: process.env.SMTP_USER,
-      };
-      transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT || 587),
-        secure: (process.env.SMTP_SECURE || "true") === "true",
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS,
-        },
-      });
-    }
-
-    await prisma.emailLog.update({
-      where: { id: emailLog.id },
-      data: { ...logData },
-    });
-
-    // 3. Send the email
-    const fromEmail = process.env.SMTP_FROM_EMAIL || "noreply@example.com";
-    const info = await transporter.sendMail({
-      from: `"Your App Name" <${fromEmail}>`,
-      ...mailOptions,
-    });
-
-    await prisma.emailLog.update({
-      where: { id: emailLog.id },
-      data: {
-        status: "SENT",
-        response: JSON.stringify(info, null, 2),
-      },
-    });
-
-    console.log(`Email sent successfully to ${mailOptions.to}`);
-
-  } catch (error) {
-    console.error(`Failed to send email for shop ${shop}:`, error);
-    await prisma.emailLog.update({
-      where: { id: emailLog.id },
-      data: {
-        status: "FAILED",
-        response: JSON.stringify(error, Object.getOwnPropertyNames(error), 2),
-      },
-    });
-    // We don't throw the error to avoid crashing the parent process
+  if (!settings?.notificationsEnabled) {
+    console.log(`Email notifications disabled for ${shop}; email not dispatched.`);
+    return;
   }
+
+  const defaultSmtp = getDefaultSmtpConfig();
+  const planContext = await getSubscriptionPlanContext({ shop });
+
+  await dispatchEmailAutomation({
+    shop,
+    mail: mailOptions,
+    emailSettings: settings,
+    defaultSmtp,
+    meta: {
+      ...metadata,
+      fromEmail: defaultSmtp.fromEmail,
+      plan: planContext.plan,
+      features: planContext.features,
+    },
+  });
 }
 
-/**
- * Sends a notification to administrators about a new question.
- * @param {string} shop
- * @param {import("@prisma/client").Question} question
- */
 export async function sendNewQuestionNotification(shop, question, options = {}) {
   const settings = await prisma.emailSetting.findUnique({ where: { shop } });
+
+  if (
+    !settings?.notificationsEnabled ||
+    !settings?.notifyOnNewQuestion ||
+    !settings?.notificationEmails
+  ) {
+    return;
+  }
 
   const questionPath = options.questionPath || `/app/questions/${question.id}`;
   const dashboardUrl = getAdminAppUrl(shop, questionPath);
   const friendlyStoreName = options.storeName || formatShopName(shop);
 
-  // Template variables
   const variables = {
     customerName: question.customerName || "Anonymous",
     question: question.question,
@@ -189,72 +119,59 @@ export async function sendNewQuestionNotification(shop, question, options = {}) 
     storeName: friendlyStoreName,
   };
 
-  // Use custom template if available, otherwise use default
   const defaultSubject = "New Question Submitted on Your Store";
   const defaultBody =
-    '<p>A new question has been submitted:</p>' +
-    '<blockquote>{{question}}</blockquote>' +
-    '<p>Customer: {{customerName}}</p>' +
-    (dashboardUrl ? '<p>You can view and answer the question in your app dashboard <a href="{{dashboardUrl}}">here</a>.</p>' : '<p>You can view and answer the question in your app dashboard.</p>') +
-    (friendlyStoreName ? '<p>Best regards,<br />{{storeName}}</p>' : '');
+    "<p>A new question has been submitted:</p>" +
+    "<blockquote>{{question}}</blockquote>" +
+    "<p>Customer: {{customerName}}</p>" +
+    (dashboardUrl
+      ? "<p>You can view and answer the question in your app dashboard <a href=\"{{dashboardUrl}}\">here</a>.</p>"
+      : "<p>You can view and answer the question in your app dashboard.</p>") +
+    (friendlyStoreName ? "<p>Best regards,<br />{{storeName}}</p>" : "");
 
-  const subject = settings?.newQuestionAdminSubject
+  const resolvedSubject = settings?.newQuestionAdminSubject
     ? replaceEmailVariables(settings.newQuestionAdminSubject, variables)
     : defaultSubject;
 
-  const html = settings?.newQuestionAdminEmailBody
+  const resolvedBody = settings?.newQuestionAdminEmailBody
     ? replaceEmailVariables(settings.newQuestionAdminEmailBody, variables)
     : replaceEmailVariables(defaultBody, variables);
 
-  // Check if this specific notification is enabled and emails are configured
-  if (!settings?.notifyOnNewQuestion || !settings?.notificationEmails) {
-    await prisma.emailLog.create({
-      data: {
-        shop,
-        to: settings?.notificationEmails || "",
-        subject,
-        body: html,
-        status: "DISABLED",
-        response: "Notification for new questions is disabled or no email is configured.",
-      },
-    });
-    return;
-  }
+  const emails = settings.notificationEmails
+    .split(",")
+    .map((email) => email.trim())
+    .filter(Boolean);
 
-  const emails = settings.notificationEmails.split(",").map(e => e.trim()).filter(e => e);
   if (emails.length === 0) {
-    await prisma.emailLog.create({
-      data: {
-        shop,
-        to: settings.notificationEmails,
-        subject,
-        body: html,
-        status: "DISABLED",
-        response: "No valid email addresses found in notification settings.",
-      },
-    });
     return;
   }
 
-  // Send an individual email to each administrator
   for (const email of emails) {
-    await sendEmail(shop, { to: email, subject, html });
+    await sendEmail(
+      shop,
+      { to: email, subject: resolvedSubject, html: resolvedBody },
+      {
+        settings,
+        metadata: {
+          event: "admin.newQuestion",
+          questionId: question.id,
+          productId: question.productId,
+        },
+      },
+    );
   }
 }
 
-/**
- * Sends a notification to the customer when their question is answered.
- * @param {string} shop
- * @param {import("@prisma/client").Question} question
- * @param {import("@prisma/client").Answer} answer
- */
 export async function sendNewAnswerNotification(shop, question, answer, options = {}) {
   const settings = await prisma.emailSetting.findUnique({ where: { shop } });
+  if (!settings?.notificationsEnabled) {
+    return;
+  }
+
   const { productHandle, storeName, productName } = options;
   const productUrl = buildProductUrl(shop, productHandle);
   const friendlyStoreName = storeName || formatShopName(shop);
 
-  // Template variables
   const variables = {
     customerName: question.customerName || "there",
     question: question.question,
@@ -264,16 +181,17 @@ export async function sendNewAnswerNotification(shop, question, answer, options 
     storeName: friendlyStoreName,
   };
 
-  // Use custom template if available, otherwise use default
   const defaultSubject = "Your question has been answered!";
   const defaultBody =
-    '<p>Hi {{customerName}},</p>' +
-    '<p>You asked:</p>' +
-    '<blockquote>{{question}}</blockquote>' +
-    '<p>A new answer has been provided:</p>' +
-    '<blockquote>{{answer}}</blockquote>' +
-    (productUrl ? '<p>You can view the question and answer on the product page <a href="{{productUrl}}">here</a>.</p>' : '<p>You can view the question and answer on the product page.</p>') +
-    (friendlyStoreName ? '<p>Best regards,<br />{{storeName}}</p>' : '');
+    "<p>Hi {{customerName}},</p>" +
+    "<p>You asked:</p>" +
+    "<blockquote>{{question}}</blockquote>" +
+    "<p>A new answer has been provided:</p>" +
+    "<blockquote>{{answer}}</blockquote>" +
+    (productUrl
+      ? "<p>You can view the question and answer on the product page <a href=\"{{productUrl}}\">here</a>.</p>"
+      : "<p>You can view the question and answer on the product page.</p>") +
+    (friendlyStoreName ? "<p>Best regards,<br />{{storeName}}</p>" : "");
 
   const subject = settings?.answerEmailSubject
     ? replaceEmailVariables(settings.answerEmailSubject, variables)
@@ -283,36 +201,35 @@ export async function sendNewAnswerNotification(shop, question, answer, options 
     ? replaceEmailVariables(settings.answerEmailBody, variables)
     : replaceEmailVariables(defaultBody, variables);
 
-  // Check if the customer provided an email
   if (!question.customerEmail) {
-    await prisma.emailLog.create({
-      data: {
-        shop,
-        to: "",
-        subject,
-        body: html,
-        status: "DISABLED",
-        response: "Customer did not provide an email address.",
-      },
-    });
     return;
   }
 
-  await sendEmail(shop, { to: question.customerEmail, subject, html });
+  await sendEmail(
+    shop,
+    { to: question.customerEmail, subject, html },
+    {
+      settings,
+      metadata: {
+        event: "customer.answerNotification",
+        questionId: question.id,
+        answerId: answer.id,
+        productId: question.productId,
+      },
+    },
+  );
 }
 
-/**
- * Sends a notification to the customer when their question is published.
- * @param {string} shop
- * @param {import("@prisma/client").Question} question
- */
 export async function sendQuestionPublishedNotification(shop, question, options = {}) {
   const settings = await prisma.emailSetting.findUnique({ where: { shop } });
+  if (!settings?.notificationsEnabled) {
+    return;
+  }
+
   const { productHandle, storeName, productName } = options;
   const productUrl = buildProductUrl(shop, productHandle);
   const friendlyStoreName = storeName || formatShopName(shop);
 
-  // Template variables
   const variables = {
     customerName: question.customerName || "there",
     question: question.question,
@@ -321,14 +238,15 @@ export async function sendQuestionPublishedNotification(shop, question, options 
     storeName: friendlyStoreName,
   };
 
-  // Use custom template if available, otherwise use default
   const defaultSubject = "Your question has been published!";
   const defaultBody =
-    '<p>Hi {{customerName}},</p>' +
-    '<p>You asked:</p>' +
-    '<blockquote>{{question}}</blockquote>' +
-    (productUrl ? '<p>Your question has been published on our store. You can view it on the product page <a href="{{productUrl}}">here</a>.</p>' : '<p>Your question has been published on our store. You can view it on the product page.</p>') +
-    (friendlyStoreName ? '<p>Best regards,<br />{{storeName}}</p>' : '');
+    "<p>Hi {{customerName}},</p>" +
+    "<p>You asked:</p>" +
+    "<blockquote>{{question}}</blockquote>" +
+    (productUrl
+      ? "<p>Your question has been published on our store. You can view it on the product page <a href=\"{{productUrl}}\">here</a>.</p>"
+      : "<p>Your question has been published on our store. You can view it on the product page.</p>") +
+    (friendlyStoreName ? "<p>Best regards,<br />{{storeName}}</p>" : "");
 
   const subject = settings?.questionPublishedSubject
     ? replaceEmailVariables(settings.questionPublishedSubject, variables)
@@ -338,20 +256,20 @@ export async function sendQuestionPublishedNotification(shop, question, options 
     ? replaceEmailVariables(settings.questionPublishedEmailBody, variables)
     : replaceEmailVariables(defaultBody, variables);
 
-  // Check if the customer provided an email
   if (!question.customerEmail) {
-    await prisma.emailLog.create({
-      data: {
-        shop,
-        to: "",
-        subject,
-        body: html,
-        status: "DISABLED",
-        response: "Customer did not provide an email address.",
-      },
-    });
     return;
   }
 
-  await sendEmail(shop, { to: question.customerEmail, subject, html });
+  await sendEmail(
+    shop,
+    { to: question.customerEmail, subject, html },
+    {
+      settings,
+      metadata: {
+        event: "customer.questionPublished",
+        questionId: question.id,
+        productId: question.productId,
+      },
+    },
+  );
 }

@@ -1,4 +1,6 @@
-import prisma from '../db.server';
+import prisma from "../db.server";
+import { dispatchWebhookAutomation } from "./automation.server";
+import { getSubscriptionPlanContext } from "./plans.server";
 
 /**
  * @typedef {'newQuestion' | 'editQuestion' | 'deleteQuestion' | 'newAnswer' | 'editAnswer' | 'deleteAnswer' | 'approveQuestion' | 'newVote'} WebhookTopic
@@ -16,27 +18,29 @@ export async function triggerWebhook(shop, topic, payload) {
       where: { shop },
     });
 
-    // Check if there's a URL and the specific topic is enabled
-    if (settings && settings.url && settings[topic]) {
-      console.log(`Triggering '${topic}' webhook for ${shop} to ${settings.url}`);
-
-      const response = await fetch(settings.url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Shopify-Shop-Domain': shop,
-          'X-Webhook-Topic': topic,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        console.error(
-          `Webhook for ${shop} failed with status ${response.status}: ${await response.text()}`
-        );
-      }
+    if (!(settings && settings.url && settings[topic])) {
+      return;
     }
+
+    const planContext = await getSubscriptionPlanContext({ shop });
+
+    await dispatchWebhookAutomation({
+      shop,
+      topic,
+      target: settings.url,
+      payload,
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Shop-Domain": shop,
+        "X-Webhook-Topic": topic,
+      },
+      meta: {
+        webhookSettingId: settings.id,
+        plan: planContext.plan,
+        features: planContext.features,
+      },
+    });
   } catch (error) {
-    console.error(`Error triggering webhook for shop ${shop}:`, error);
+    console.error(`Error preparing webhook for shop ${shop}:`, error);
   }
 }

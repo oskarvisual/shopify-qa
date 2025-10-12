@@ -1,10 +1,10 @@
 import { json } from "@remix-run/node";
-import nodemailer from "nodemailer";
 import { authenticate } from "../shopify.server";
+import { dispatchEmailAutomation } from "../lib/automation.server";
 
 export const action = async ({ request }) => {
-  // Authenticate the request to ensure it's coming from an admin
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
+  const { shop } = session;
 
   const formData = await request.formData();
   const smtpHost = formData.get("smtpHost");
@@ -17,21 +17,42 @@ export const action = async ({ request }) => {
     return json({ error: "Host, Port, and Username are required." }, { status: 400 });
   }
 
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: smtpPort,
-    secure: smtpSecure,
-    auth: {
-      user: smtpUser,
-      pass: smtpPass,
+  const response = await dispatchEmailAutomation({
+    shop,
+    mail: null,
+    emailSettings: {
+      notificationsEnabled: true,
+      smtpProvider: "CUSTOM",
+      smtpHost,
+      smtpPort,
+      smtpUser,
+      smtpPass,
+      smtpSecure,
+    },
+    defaultSmtp: {
+      host: null,
+      port: null,
+      secure: null,
+      user: null,
+      pass: null,
+      fromEmail: null,
+    },
+    meta: {
+      event: "smtp.verify",
+      connection: {
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        user: smtpUser,
+      },
     },
   });
 
-  try {
-    await transporter.verify();
-    return json({ success: "Connection successful!" });
-  } catch (error) {
-    console.error("SMTP Connection Error:", error);
-    return json({ error: `Connection failed: ${error.message}` }, { status: 500 });
+  if (response && response.ok) {
+    const data = await response.json().catch(() => ({}));
+    return json({ success: "Verification dispatched", details: data });
   }
+
+  console.error("Failed to dispatch SMTP verification via automation.");
+  return json({ error: "Failed to dispatch SMTP verification." }, { status: 500 });
 };
