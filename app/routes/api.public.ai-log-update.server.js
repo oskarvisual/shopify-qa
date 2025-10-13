@@ -34,5 +34,3 @@ export async function action({ request }) {
     return cors(request, errorResponse);
   }
 }
-
-// Allow POST requests
