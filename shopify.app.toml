@@ -7,7 +7,7 @@ embedded = true
 handle = "product-questions-and-answers-2"
 
 [build]
-automatically_update_urls_on_dev = false
+automatically_update_urls_on_dev = true
 
 [webhooks]
 api_version = "2025-07"
