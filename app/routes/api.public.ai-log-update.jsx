@@ -1,5 +1,5 @@
 import { json } from "@remix-run/node";
-import { cors } from "remix-utils/cors";
+import { cors } from "../lib/cors.server.js";
 import prisma from "../db.server";
 
 export async function action({ request }) {

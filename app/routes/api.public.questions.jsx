@@ -1,5 +1,5 @@
 import { json } from "@remix-run/node";
-import { cors } from "remix-utils/cors";
+import { cors } from "../lib/cors.server.js";
 import { triggerWebhook } from "../lib/webhook.server.js";
 import { sendNewQuestionNotification, sendQuestionPublishedNotification } from "../lib/email.server.js";
 import prisma from "../db.server";

@@ -1,6 +1,6 @@
 import { json } from "@remix-run/node";
 import prisma from "../db.server";
-import { cors } from "remix-utils/cors";
+import { cors } from "../lib/cors.server.js";
 import { triggerWebhook } from "../lib/webhook.server";
 
 // GET method to check vote status
