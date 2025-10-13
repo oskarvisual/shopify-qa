@@ -1,15 +1,27 @@
 -- Fix production database schema
 -- Execute this SQL directly in your Digital Ocean database console
+-- Run each ALTER TABLE separately and ignore "Duplicate column" errors
 
--- First, check current structure (copy the result to compare)
+-- Check current structure first
 DESCRIBE `EmailSetting`;
 
--- Add autoApproveQuestions column (run this and ignore error if column exists)
-ALTER TABLE `EmailSetting` ADD COLUMN `autoApproveQuestions` BOOLEAN NOT NULL DEFAULT false;
+-- Add missing email template columns (run one by one, ignore errors if column exists)
+ALTER TABLE `EmailSetting` ADD COLUMN `answerEmailSubject` TEXT NULL;
+ALTER TABLE `EmailSetting` ADD COLUMN `answerEmailBody` TEXT NULL;
+ALTER TABLE `EmailSetting` ADD COLUMN `questionPublishedSubject` TEXT NULL;
+ALTER TABLE `EmailSetting` ADD COLUMN `questionPublishedEmailBody` TEXT NULL;
+ALTER TABLE `EmailSetting` ADD COLUMN `newQuestionAdminSubject` TEXT NULL;
+ALTER TABLE `EmailSetting` ADD COLUMN `newQuestionAdminEmailBody` TEXT NULL;
 
--- Verify the column was added
-SELECT COLUMN_NAME
+-- Verify all columns are present (should show 20 columns)
+SELECT COUNT(*) as total_columns
+FROM INFORMATION_SCHEMA.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'EmailSetting';
+
+-- List all columns
+SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE
 FROM INFORMATION_SCHEMA.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE()
   AND TABLE_NAME = 'EmailSetting'
-  AND COLUMN_NAME = 'autoApproveQuestions';
+ORDER BY ORDINAL_POSITION;
