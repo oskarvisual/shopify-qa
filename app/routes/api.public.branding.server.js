@@ -44,5 +44,3 @@ export const loader = async ({ request }) => {
     return cors(request, errorResponse);
   }
 };
-
-export const action = loader;
