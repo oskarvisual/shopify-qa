@@ -36,9 +36,3 @@ export async function action({ request }) {
 }
 
 // Allow POST requests
-export const handle = ({ request, params, context }) => {
-  if (request.method === "POST") {
-    return action({ request });
-  }
-  return new Response("Method Not Allowed", { status: 405 });
-};
