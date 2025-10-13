@@ -2,12 +2,12 @@
 
 client_id = "3064ddc918220795fa21739de76542f5"
 name = "product-questions-and-answers"
-application_url = "https://example.com/"
+application_url = "https://shopify-qa.orivisdev.shop/"
 embedded = true
 handle = "product-questions-and-answers-2"
 
 [build]
-automatically_update_urls_on_dev = true
+automatically_update_urls_on_dev = false
 
 [webhooks]
 api_version = "2025-07"
@@ -27,12 +27,15 @@ api_version = "2025-07"
 scopes = "write_products,read_products"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [
+  "https://shopify-qa.orivisdev.shop/api/auth",
+  "https://shopify-qa.orivisdev.shop/api/auth/callback"
+]
 
 [pos]
 embedded = false
 
 [app_proxy]
-url = "https://wrist-snapshot-pic-subsequently.trycloudflare.com/"
+url = "https://shopify-qa.orivisdev.shop/"
 prefix = "apps"
 subpath = "a"
