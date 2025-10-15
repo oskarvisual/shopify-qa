@@ -125,6 +125,7 @@ export async function generateAnswer(context) {
 
   console.log("AI Webhook Configuration Check:");
   console.log("  AUTOMATIONS_AI_WEBHOOK_URL:", webhookUrl);
+  console.log("  AUTOMATIONS_TOKEN:", process.env.AUTOMATIONS_TOKEN ? `${process.env.AUTOMATIONS_TOKEN.substring(0, 8)}...` : "NOT SET");
   console.log("  Shop:", context.shop);
   console.log("  Product ID:", context.productId);
 
