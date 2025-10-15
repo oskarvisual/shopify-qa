@@ -1,9 +1,37 @@
+import prisma from "../db.server";
+
 const DEFAULT_NO_ANSWER_MESSAGE =
   "I couldn't find enough information to answer this question based on the provided context.";
 const DEFAULT_ERROR_MESSAGE =
   "Sorry, there was an error generating an answer. Please try again later.";
 
-function buildWebhookPayload(context = {}) {
+async function getAiDailyCount(shop) {
+  if (!shop) return 0;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  try {
+    const count = await prisma.aiLog.count({
+      where: {
+        shop,
+        createdAt: {
+          gte: today,
+          lt: tomorrow,
+        },
+      },
+    });
+    return count;
+  } catch (error) {
+    console.error("Error counting daily AI usage:", error);
+    return 0;
+  }
+}
+
+async function buildWebhookPayload(context = {}) {
   const {
     customerQuestion,
     product,
@@ -46,6 +74,8 @@ function buildWebhookPayload(context = {}) {
       }),
   );
 
+  const aiDailyCount = await getAiDailyCount(shop);
+
   return {
     appId,
     shop: shop || null,
@@ -57,6 +87,7 @@ function buildWebhookPayload(context = {}) {
     product: normalizedProduct,
     plan: planContext?.plan || null,
     planFeatures: planContext?.features || null,
+    aiDailyCount,
     ...(hasStoreData ? { store } : {}),
   };
 }
@@ -102,7 +133,7 @@ export async function generateAnswer(context) {
     };
   }
 
-  const payload = buildWebhookPayload(context);
+  const payload = await buildWebhookPayload(context);
   const headers = buildRequestHeaders();
 
   try {
