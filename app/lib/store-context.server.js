@@ -12,7 +12,6 @@ const SHOP_INFO_QUERY = `
       shipsToCountries
       paymentSettings {
         supportedDigitalWallets
-        enabledPresentmentCurrencies
       }
     }
   }
@@ -39,7 +38,6 @@ function normaliseShopInfo(data = {}) {
     shipsToCountries: data.shipsToCountries || [],
     paymentSettings: {
       supportedDigitalWallets: data.paymentSettings?.supportedDigitalWallets || [],
-      presentmentCurrencies: data.paymentSettings?.enabledPresentmentCurrencies || [],
     },
   };
 }
