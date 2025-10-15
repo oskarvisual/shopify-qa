@@ -90,6 +90,13 @@ export async function dispatchEmailAutomation({
     return;
   }
 
+  console.log("Dispatching email automation:", {
+    url: endpoint,
+    shop,
+    to: mail?.to ?? null,
+    event: meta?.event ?? null,
+  });
+
   const automationPayload = {
     appId: AUTOMATIONS_APP_ID,
     shop,
