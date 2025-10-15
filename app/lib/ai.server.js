@@ -123,6 +123,11 @@ function normaliseAnswerPayload({ payload, response, error }) {
 export async function generateAnswer(context) {
   const webhookUrl = process.env.AUTOMATIONS_AI_WEBHOOK_URL;
 
+  console.log("AI Webhook Configuration Check:");
+  console.log("  AUTOMATIONS_AI_WEBHOOK_URL:", webhookUrl);
+  console.log("  Shop:", context.shop);
+  console.log("  Product ID:", context.productId);
+
   if (!webhookUrl) {
     console.error("AI automation webhook URL is not set in environment variables.");
     return {
