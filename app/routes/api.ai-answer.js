@@ -69,7 +69,24 @@ export async function action({ request }) {
       planContext,
     };
 
-    const { message, hasAnswer } = await generateAnswer(context);
+    const { message, hasAnswer, fullContext, noAnswer } = await generateAnswer(context);
+
+    // Save to AI log for admin requests too
+    try {
+      await prisma.aiLog.create({
+        data: {
+          shop,
+          productId,
+          customerQuestion,
+          aiAnswer: message,
+          fullContext,
+          noAnswer,
+        },
+      });
+    } catch (logError) {
+      console.error("Failed to save AI log for admin request:", logError);
+      // Don't fail the request if logging fails
+    }
 
     return json({ answer: hasAnswer, message });
   } catch (error) {
