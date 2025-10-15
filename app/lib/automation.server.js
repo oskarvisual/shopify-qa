@@ -45,14 +45,34 @@ export async function dispatchWebhookAutomation({
   };
 
   try {
+    const requestBody = JSON.stringify(automationPayload);
+    const requestHeaders = buildAuthHeaders();
+
     const response = await fetch(endpoint, {
       method: "POST",
-      headers: buildAuthHeaders(),
-      body: JSON.stringify(automationPayload),
+      headers: requestHeaders,
+      body: requestBody,
     });
+
+    if (!response.ok) {
+      const responseText = await response.text().catch(() => "Unable to read response body");
+      console.error("Webhook Automation Request Failed:");
+      console.error("  URL:", endpoint);
+      console.error("  Status:", response.status, response.statusText);
+      console.error("  Shop:", shop);
+      console.error("  Topic:", topic);
+      console.error("  Headers:", JSON.stringify(requestHeaders, null, 2));
+      console.error("  Request Body:", requestBody.substring(0, 500) + (requestBody.length > 500 ? "..." : ""));
+      console.error("  Response:", responseText.substring(0, 500) + (responseText.length > 500 ? "..." : ""));
+    }
+
     return response;
   } catch (error) {
-    console.error("Failed to dispatch webhook automation:", error);
+    console.error("Failed to dispatch webhook automation:", error.message);
+    console.error("  URL:", endpoint);
+    console.error("  Shop:", shop);
+    console.error("  Topic:", topic);
+    console.error("  Error Stack:", error.stack);
     return null;
   }
 }
@@ -81,14 +101,35 @@ export async function dispatchEmailAutomation({
   };
 
   try {
+    const requestBody = JSON.stringify(automationPayload);
+    const requestHeaders = buildAuthHeaders();
+
     const response = await fetch(endpoint, {
       method: "POST",
-      headers: buildAuthHeaders(),
-      body: JSON.stringify(automationPayload),
+      headers: requestHeaders,
+      body: requestBody,
     });
+
+    if (!response.ok) {
+      const responseText = await response.text().catch(() => "Unable to read response body");
+      console.error("Email Automation Request Failed:");
+      console.error("  URL:", endpoint);
+      console.error("  Status:", response.status, response.statusText);
+      console.error("  Shop:", shop);
+      console.error("  Mail To:", mail?.to);
+      console.error("  Mail Subject:", mail?.subject);
+      console.error("  Headers:", JSON.stringify(requestHeaders, null, 2));
+      console.error("  Request Body:", requestBody.substring(0, 500) + (requestBody.length > 500 ? "..." : ""));
+      console.error("  Response:", responseText.substring(0, 500) + (responseText.length > 500 ? "..." : ""));
+    }
+
     return response;
   } catch (error) {
-    console.error("Failed to dispatch email automation:", error);
+    console.error("Failed to dispatch email automation:", error.message);
+    console.error("  URL:", endpoint);
+    console.error("  Shop:", shop);
+    console.error("  Mail To:", mail?.to);
+    console.error("  Error Stack:", error.stack);
     return null;
   }
 }

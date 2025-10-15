@@ -137,14 +137,23 @@ export async function generateAnswer(context) {
   const headers = buildRequestHeaders();
 
   try {
+    const requestBody = JSON.stringify(payload);
+
     const response = await fetch(webhookUrl, {
       method: "POST",
       headers,
-      body: JSON.stringify(payload),
+      body: requestBody,
     });
 
     if (!response.ok) {
-      throw new Error(`Webhook responded with status ${response.status}`);
+      const responseText = await response.text().catch(() => "Unable to read response body");
+      console.error("AI Webhook Request Failed:");
+      console.error("  URL:", webhookUrl);
+      console.error("  Status:", response.status, response.statusText);
+      console.error("  Headers:", JSON.stringify(headers, null, 2));
+      console.error("  Request Body:", requestBody.substring(0, 500) + (requestBody.length > 500 ? "..." : ""));
+      console.error("  Response:", responseText.substring(0, 500) + (responseText.length > 500 ? "..." : ""));
+      throw new Error(`Webhook responded with status ${response.status}: ${response.statusText}`);
     }
 
     const data = await response.json().catch(() => ({}));
@@ -180,7 +189,11 @@ export async function generateAnswer(context) {
       noAnswer,
     };
   } catch (error) {
-    console.error("Error generating AI answer via webhook:", error);
+    console.error("Error generating AI answer via webhook:", error.message);
+    console.error("  URL:", webhookUrl);
+    console.error("  Shop:", context.shop);
+    console.error("  Product ID:", context.productId);
+    console.error("  Error Stack:", error.stack);
     return {
       message: DEFAULT_ERROR_MESSAGE,
       hasAnswer: false,
