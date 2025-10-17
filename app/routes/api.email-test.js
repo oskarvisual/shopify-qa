@@ -49,10 +49,25 @@ export async function action({ request }) {
   });
 
   if (response && response.ok) {
-    const data = await response.json().catch(() => ({}));
-    return json({ success: "Verification dispatched", details: data });
+    if (typeof response.json === "function") {
+      const data = await response.json().catch(() => ({}));
+      return json({ success: "Verification dispatched", details: data });
+    }
+
+    return json({
+      success: response.status === "verified" ? "SMTP connection verified" : "SMTP request completed",
+      details: response,
+    });
   }
 
-  console.error("Failed to dispatch SMTP verification via automation.");
-  return json({ error: "Failed to dispatch SMTP verification." }, { status: 500 });
+  const errorDetails =
+    response && typeof response.json === "function"
+      ? { status: response.status, statusText: response.statusText }
+      : { error: response?.error || null, status: response?.status || null };
+
+  console.error("Failed to verify SMTP configuration", {
+    shop,
+    ...errorDetails,
+  });
+  return json({ error: "Failed to verify SMTP configuration." }, { status: 500 });
 }
