@@ -70,13 +70,21 @@ export async function action({ request }) {
 
       const planContext = await getSubscriptionPlanContext({ shop });
 
+      const appId =
+        process.env.AUTOMATIONS_APP_ID ||
+        process.env.SHOPIFY_APP_HANDLE ||
+        process.env.SHOPIFY_API_KEY ||
+        "product-questions-and-answers";
+
       const payload = {
+        appId,
         event: isUpdate ? "ai_feedback.updated" : "ai_feedback.created",
         shop,
         feedback,
         aiLog,
         plan: planContext.plan,
         features: planContext.features,
+        dispatchedAt: new Date().toISOString(),
       };
 
       const headers = {
