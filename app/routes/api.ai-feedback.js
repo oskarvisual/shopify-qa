@@ -1,7 +1,6 @@
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { dispatchWebhookAutomation } from "../lib/automation.server";
 import { getSubscriptionPlanContext } from "../lib/plans.server";
 
 export async function action({ request }) {
@@ -71,24 +70,47 @@ export async function action({ request }) {
 
       const planContext = await getSubscriptionPlanContext({ shop });
 
-      await dispatchWebhookAutomation({
+      const payload = {
+        event: isUpdate ? "ai_feedback.updated" : "ai_feedback.created",
         shop,
-        topic: "ai_feedback",
-        target: webhookUrl,
-        payload: {
-          event: isUpdate ? "ai_feedback.updated" : "ai_feedback.created",
-          shop,
-          feedback,
-          aiLog,
-        },
-        headers: {
-          "Content-Type": "application/json",
-        },
-        meta: {
-          plan: planContext.plan,
-          features: planContext.features,
-        },
-      });
+        feedback,
+        aiLog,
+        plan: planContext.plan,
+        features: planContext.features,
+      };
+
+      const headers = {
+        "Content-Type": "application/json",
+      };
+
+      const token = process.env.AUTOMATIONS_TOKEN?.trim();
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      try {
+        const response = await fetch(webhookUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          const responseText = await response.text().catch(() => "Unable to read response body");
+          console.error("AI Feedback Webhook Request Failed:");
+          console.error("  URL:", webhookUrl);
+          console.error("  Status:", response.status, response.statusText);
+          console.error("  Shop:", shop);
+          console.error("  Event:", payload.event);
+          console.error("  Headers:", JSON.stringify(headers, null, 2));
+          console.error("  Response:", responseText.substring(0, 500) + (responseText.length > 500 ? "..." : ""));
+        }
+      } catch (error) {
+        console.error("Failed to send AI feedback webhook:", error.message);
+        console.error("  URL:", webhookUrl);
+        console.error("  Shop:", shop);
+        console.error("  Error Stack:", error.stack);
+      }
     }
 
     return json({ success: true, feedback });
