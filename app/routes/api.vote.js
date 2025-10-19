@@ -2,6 +2,7 @@ import { json } from "@remix-run/node";
 import { createHash } from "node:crypto";
 import { cors } from "../lib/cors.server.js";
 import prisma from "../db.server";
+import { triggerWebhook } from "../lib/webhook.server.js";
 
 function normalizeIdentifier(value) {
   if (typeof value !== "string") {
@@ -122,12 +123,14 @@ export async function action({ request }) {
   const formData = await request.formData();
   const questionId = formData.get("questionId");
   const shop = formData.get("shop");
+  const customerEmailRaw = formData.get("customerEmail");
+  const customerIdRaw = formData.get("customerId");
   const identifier = resolveIdentifier({
     request,
     shop,
     identifier: formData.get("identifier"),
-    customerEmail: formData.get("customerEmail"),
-    customerId: formData.get("customerId"),
+    customerEmail: customerEmailRaw,
+    customerId: customerIdRaw,
   });
   const rawVote = formData.get("vote");
   const voteValue = rawVote === null ? 1 : Number(rawVote);
@@ -139,6 +142,7 @@ export async function action({ request }) {
   try {
     let resultVotes = 0;
     let alreadyVoted = false;
+    let recordedVote = null;
 
     await prisma.$transaction(async (tx) => {
       const existingVote = await tx.voteLog.findUnique({
@@ -161,7 +165,7 @@ export async function action({ request }) {
         return;
       }
 
-      await tx.voteLog.create({
+      recordedVote = await tx.voteLog.create({
         data: {
           questionId,
           shop,
@@ -172,14 +176,41 @@ export async function action({ request }) {
       const updatedQuestion = await tx.question.update({
         where: { id: questionId },
         data: { votes: { increment: voteValue > 0 ? 1 : -1 } },
-        select: { votes: true },
+        select: { id: true, productId: true, question: true, customerName: true, customerEmail: true, votes: true },
       });
 
       resultVotes = updatedQuestion?.votes ?? 0;
+      if (updatedQuestion) {
+        recordedVote = {
+          ...recordedVote,
+          question: updatedQuestion,
+        };
+      }
     });
 
     if (alreadyVoted) {
       return cors(request, json({ success: false, error: "already voted", votes: resultVotes }));
+    }
+
+    if (recordedVote?.question) {
+      const payload = {
+        action: "vote",
+        entity: "question",
+        shop,
+        data: {
+          questionId,
+          totalVotes: resultVotes,
+          question: recordedVote.question,
+          vote: {
+            identifier,
+            direction: voteValue > 0 ? "up" : "down",
+            customerEmail: typeof customerEmailRaw === "string" ? customerEmailRaw.trim() || null : null,
+            customerId: typeof customerIdRaw === "string" ? customerIdRaw.trim() || null : null,
+          },
+        },
+      };
+
+      await triggerWebhook(shop, "newVote", payload);
     }
 
     return cors(request, json({ success: true, votes: resultVotes }));
