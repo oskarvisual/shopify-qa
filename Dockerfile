@@ -10,9 +10,9 @@ ENV NODE_ENV=production
 COPY package.json package-lock.json* ./
 
 RUN npm ci --omit=dev && npm cache clean --force
-# Remove CLI packages since we don't need them in production by default.
-# Remove this line if you want to run CLI commands in your container.
-RUN npm remove @shopify/cli
+# Keep CLI packages to allow theme extension deployments
+# Uncomment the line below if you want to remove CLI to reduce image size
+# RUN npm remove @shopify/cli
 
 COPY . .
 
