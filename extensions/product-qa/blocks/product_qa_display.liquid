@@ -336,10 +336,9 @@
               <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6zM9 4.5a1.5 1.5 0 113 0v1a1.5 1.5 0 01-3 0v-1z"></path>
             </svg>`;
 
-    function voteButtonContent(label, votes) {
-      const votesText = typeof votes === 'number' ? ` (${votes || 0})` : '';
+    function voteButtonContent(label) {
       return `${voteButtonIcon}
-            <span>${label}${votesText}</span>`;
+            <span>${label}</span>`;
     }
 
     const defaultDisplayTexts = {
@@ -378,13 +377,12 @@
 
     function updateVoteButtonLabels() {
       document.querySelectorAll('.btn-vote').forEach((button) => {
-        const votes = Number(button.dataset.votes || 0);
         if (button.classList.contains('voting')) {
           button.innerHTML = `<span>${displayTexts.voting}</span>`;
         } else if (button.classList.contains('voted')) {
-          button.innerHTML = voteButtonContent(displayTexts.voted, votes);
+          button.innerHTML = voteButtonContent(displayTexts.voted);
         } else {
-          button.innerHTML = voteButtonContent(displayTexts.helpful, votes);
+          button.innerHTML = voteButtonContent(displayTexts.helpful);
         }
       });
     }
@@ -612,14 +610,14 @@
           button.classList.add('voted');
           button.disabled = true;
           button.dataset.votes = voteStatus.votes;
-          button.innerHTML = voteButtonContent(displayTexts.voted, voteStatus.votes);
+          button.innerHTML = voteButtonContent(displayTexts.voted);
         } else {
           // Remove voted class if somehow it was added but user hasn't actually voted
           button.classList.remove('voted');
           button.disabled = false;
           // Update vote count even if user hasn't voted (in case it changed)
           button.dataset.votes = voteStatus.votes;
-          button.innerHTML = voteButtonContent(displayTexts.helpful, voteStatus.votes);
+          button.innerHTML = voteButtonContent(displayTexts.helpful);
         }
       }
     }
@@ -833,7 +831,7 @@
           button.classList.add('voted');
           button.disabled = true;
           button.dataset.votes = data.votes || 0;
-          button.innerHTML = voteButtonContent(displayTexts.voted, data.votes || 0);
+          button.innerHTML = voteButtonContent(displayTexts.voted);
         } else {
           // Check if error is "already voted" - if so, mark as voted
           if (data.error && data.error.includes('already voted')) {
@@ -843,12 +841,12 @@
             button.classList.add('voted');
             button.disabled = true;
             button.dataset.votes = voteStatus.votes;
-            button.innerHTML = voteButtonContent(displayTexts.voted, voteStatus.votes);
+            button.innerHTML = voteButtonContent(displayTexts.voted);
           } else {
             // Other error - restore button
             button.classList.remove('voting');
             button.disabled = false;
-            button.innerHTML = voteButtonContent(displayTexts.helpful, originalVotes);
+            button.innerHTML = voteButtonContent(displayTexts.helpful);
             console.error('Vote failed:', data.error);
           }
         }
@@ -857,7 +855,7 @@
         console.error('Error submitting vote:', error);
         button.classList.remove('voting');
         button.disabled = false;
-        button.innerHTML = voteButtonContent(displayTexts.helpful, originalVotes);
+        button.innerHTML = voteButtonContent(displayTexts.helpful);
       });
 
       return false;

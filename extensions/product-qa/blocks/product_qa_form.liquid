@@ -13,7 +13,7 @@
         <p><strong id="qa-suggested-answer-label">Suggested Answer:</strong></p>
         <div id="qa-ai-answer"></div>
         <div class="qa-vote-container">
-          <button type="button" class="btn-vote"></button>
+          <button type="button" class="btn-vote" data-default-text="{{ block.settings.vote_button_text | default: 'Helpful' }}">{{ block.settings.vote_button_text | default: 'Helpful' }}</button>
         </div>
         <div class="qa-ai-options">
           <p id="qa-human-prompt"></p>
@@ -60,7 +60,7 @@
           <p><strong id="qa-suggested-answer-label-modal">Suggested Answer:</strong></p>
           <div id="qa-ai-answer-modal"></div>
           <div class="qa-vote-container-modal">
-            <button type="button" class="btn-vote"></button>
+            <button type="button" class="btn-vote" data-default-text="{{ block.settings.vote_button_text | default: 'Helpful' }}">{{ block.settings.vote_button_text | default: 'Helpful' }}</button>
           </div>
           <div class="qa-ai-options">
             <p id="qa-human-prompt-modal"></p>
@@ -244,7 +244,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!button) return;
         button.disabled = false;
         button.classList.remove('voted');
-        button.textContent = texts.aiHelpfulButton;
+        const defaultLabel = button.dataset.defaultText || texts.aiHelpfulButton;
+        button.dataset.defaultText = defaultLabel;
+        button.textContent = defaultLabel;
       }
 
       if (elements.voteContainer) {
@@ -411,6 +413,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if(elements.askHumanBtn) elements.askHumanBtn.textContent = texts.aiHumanButton;
         if(elements.bypassAiBtn) elements.bypassAiBtn.textContent = texts.aiBypassButton;
 
+        if (elements.voteContainer) {
+          const voteButton = elements.voteContainer.querySelector('.btn-vote');
+          if (voteButton) {
+            voteButton.dataset.defaultText = texts.aiHelpfulButton;
+          }
+        }
         resetVoteButton();
       }
 
