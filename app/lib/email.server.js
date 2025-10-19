@@ -1,6 +1,7 @@
 import prisma from "../db.server";
 import { dispatchEmailAutomation } from "./automation.server";
 import { getSubscriptionPlanContext } from "./plans.server";
+import { PlanFeature, planHasFeature } from "./plans";
 
 function formatShopName(shop) {
   if (!shop) {
@@ -52,6 +53,45 @@ function getDefaultSmtpConfig() {
   };
 }
 
+function sanitizeEmailSettingsForPlan(settings, planFeatures) {
+  if (!settings) {
+    return settings;
+  }
+
+  if (planHasFeature(planFeatures, PlanFeature.SETTINGS_EMAIL_SMTP)) {
+    return settings;
+  }
+
+  return {
+    ...settings,
+    smtpProvider: "APP",
+    smtpHost: null,
+    smtpPort: null,
+    smtpUser: null,
+    smtpFromEmail: null,
+    smtpPass: null,
+    smtpSecure: true,
+    answerEmailSubject: null,
+    answerEmailBody: null,
+    questionPublishedSubject: null,
+    questionPublishedEmailBody: null,
+    newQuestionAdminSubject: null,
+    newQuestionAdminEmailBody: null,
+  };
+}
+
+async function loadEmailSettingsWithPlan(shop) {
+  const [settings, planContext] = await Promise.all([
+    prisma.emailSetting.findUnique({ where: { shop } }),
+    getSubscriptionPlanContext({ shop }),
+  ]);
+
+  return {
+    planContext,
+    settings: sanitizeEmailSettingsForPlan(settings, planContext.features),
+  };
+}
+
 /**
  * @typedef {object} MailOptions
  * @property {string} to
@@ -63,7 +103,7 @@ function getDefaultSmtpConfig() {
  * Enqueue an email to n8n for delivery.
  * @param {string} shop
  * @param {MailOptions} mailOptions
- * @param {{settings?: import("@prisma/client").EmailSetting|null, metadata?: object}} options
+ * @param {{settings?: import("@prisma/client").EmailSetting|null, metadata?: object, planContext?: Awaited<ReturnType<typeof getSubscriptionPlanContext>>}} options
  */
 export async function sendEmail(shop, mailOptions, options = {}) {
   if (!mailOptions?.to) {
@@ -71,9 +111,19 @@ export async function sendEmail(shop, mailOptions, options = {}) {
     return;
   }
 
-  const { settings: providedSettings = null, metadata = {} } = options;
-  const settings =
+  const {
+    settings: providedSettings = null,
+    metadata = {},
+    planContext: providedPlanContext = null,
+  } = options;
+
+  const planContext = providedPlanContext ?? (await getSubscriptionPlanContext({ shop }));
+  const planFeatures = planContext.features;
+
+  const rawSettings =
     providedSettings ?? (await prisma.emailSetting.findUnique({ where: { shop } }));
+
+  const settings = sanitizeEmailSettingsForPlan(rawSettings, planFeatures);
 
   if (!settings?.notificationsEnabled) {
     console.log(`Email notifications disabled for ${shop}; email not dispatched.`);
@@ -81,7 +131,6 @@ export async function sendEmail(shop, mailOptions, options = {}) {
   }
 
   const defaultSmtp = getDefaultSmtpConfig();
-  const planContext = await getSubscriptionPlanContext({ shop });
 
   await dispatchEmailAutomation({
     shop,
@@ -89,18 +138,18 @@ export async function sendEmail(shop, mailOptions, options = {}) {
     emailSettings: settings,
     defaultSmtp,
     plan: planContext.plan,
-    planFeatures: planContext.features,
+    planFeatures,
     meta: {
       ...metadata,
       fromEmail: defaultSmtp.fromEmail,
       plan: planContext.plan,
-      features: planContext.features,
+      features: planFeatures,
     },
   });
 }
 
 export async function sendNewQuestionNotification(shop, question, options = {}) {
-  const settings = await prisma.emailSetting.findUnique({ where: { shop } });
+  const { settings, planContext } = await loadEmailSettingsWithPlan(shop);
 
   if (
     !settings?.notificationsEnabled ||
@@ -154,6 +203,7 @@ export async function sendNewQuestionNotification(shop, question, options = {}) 
       { to: email, subject: resolvedSubject, html: resolvedBody },
       {
         settings,
+        planContext,
         metadata: {
           event: "admin.newQuestion",
           questionId: question.id,
@@ -165,7 +215,8 @@ export async function sendNewQuestionNotification(shop, question, options = {}) 
 }
 
 export async function sendNewAnswerNotification(shop, question, answer, options = {}) {
-  const settings = await prisma.emailSetting.findUnique({ where: { shop } });
+  const { settings, planContext } = await loadEmailSettingsWithPlan(shop);
+
   if (!settings?.notificationsEnabled) {
     return;
   }
@@ -212,6 +263,7 @@ export async function sendNewAnswerNotification(shop, question, answer, options 
     { to: question.customerEmail, subject, html },
     {
       settings,
+      planContext,
       metadata: {
         event: "customer.answerNotification",
         questionId: question.id,
@@ -223,7 +275,8 @@ export async function sendNewAnswerNotification(shop, question, answer, options 
 }
 
 export async function sendQuestionPublishedNotification(shop, question, options = {}) {
-  const settings = await prisma.emailSetting.findUnique({ where: { shop } });
+  const { settings, planContext } = await loadEmailSettingsWithPlan(shop);
+
   if (!settings?.notificationsEnabled) {
     return;
   }
@@ -267,6 +320,7 @@ export async function sendQuestionPublishedNotification(shop, question, options 
     { to: question.customerEmail, subject, html },
     {
       settings,
+      planContext,
       metadata: {
         event: "customer.questionPublished",
         questionId: question.id,

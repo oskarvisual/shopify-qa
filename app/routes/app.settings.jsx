@@ -94,7 +94,17 @@ export const loader = async ({ request }) => {
       smtpFromEmail: null,
       smtpPass: null,
       smtpSecure: true,
+      answerEmailSubject: null,
+      answerEmailBody: null,
+      questionPublishedSubject: null,
+      questionPublishedEmailBody: null,
+      newQuestionAdminSubject: null,
+      newQuestionAdminEmailBody: null,
     });
+  }
+
+  if (!planHasFeature(planFeatures, PlanFeature.SETTINGS_TRANSLATIONS)) {
+    translationSettings = {};
   }
 
   if (!planHasFeature(planFeatures, PlanFeature.SETTINGS_AI)) {
@@ -193,7 +203,7 @@ export const action = async ({ request }) => {
       aiNotHelpfulButton: formData.get("translationAiNotHelpfulButton"),
     };
 
-    const translationData = Object.fromEntries(
+    let translationData = Object.fromEntries(
       Object.entries(translationDataRaw)
         .map(([key, value]) => [key, typeof value === "string" ? value.trim() : ""])
         .filter(([, value]) => value !== "")
@@ -222,6 +232,12 @@ export const action = async ({ request }) => {
         smtpFromEmail: null,
         smtpPass: null,
         smtpSecure: true,
+        answerEmailSubject: null,
+        answerEmailBody: null,
+        questionPublishedSubject: null,
+        questionPublishedEmailBody: null,
+        newQuestionAdminSubject: null,
+        newQuestionAdminEmailBody: null,
       });
     } else if (emailData.smtpProvider === "CUSTOM") {
       const customValidation = validateCustomFromAddress({
@@ -251,6 +267,10 @@ export const action = async ({ request }) => {
           delete translationData[key];
         }
       });
+    }
+
+    if (!planHasFeature(planFeatures, PlanFeature.SETTINGS_TRANSLATIONS)) {
+      translationData = {};
     }
 
     await Promise.all([
