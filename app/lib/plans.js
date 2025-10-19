@@ -49,7 +49,7 @@ const PLAN_FEATURE_MAP = {
     [PlanFeature.AI_CUSTOMER_SUPPORT]: false,
     [PlanFeature.AI_LOGS]: false,
     [PlanFeature.SETTINGS_AI]: false,
-    [PlanFeature.SETTINGS_EMAIL_SMTP]: true,
+    [PlanFeature.SETTINGS_EMAIL_SMTP]: false,
     [PlanFeature.SETTINGS_WEBHOOKS]: true,
     [PlanFeature.SETTINGS_BRANDING]: false,
     [PlanFeature.SETTINGS_TRANSLATIONS]: true,

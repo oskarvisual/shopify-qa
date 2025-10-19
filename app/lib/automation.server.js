@@ -1,4 +1,5 @@
 import { createTransport } from "nodemailer";
+import { SubscriptionPlan, normalizePlan, planHasFeature, PlanFeature } from "./plans";
 
 const AUTOMATIONS_APP_ID =
   process.env.AUTOMATIONS_APP_ID ||
@@ -7,6 +8,36 @@ const AUTOMATIONS_APP_ID =
   "product-questions-and-answers";
 
 const AUTOMATIONS_GLOBAL_TOKEN = process.env.AUTOMATIONS_TOKEN?.trim() || null;
+
+const DEFAULT_CUSTOM_SMTP_TIMEOUT_MS = (() => {
+  const rawTimeout =
+    process.env.CUSTOM_SMTP_TIMEOUT_MS ||
+    process.env.SMTP_TIMEOUT_MS ||
+    process.env.SMTP_TIMEOUT;
+  const parsed = Number(rawTimeout);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 10000;
+})();
+
+function resolvePlanInfo({ plan, planFeatures, meta }) {
+  const normalizedPlan = plan ? normalizePlan(plan) : null;
+  const featuresFromOptions = planFeatures && typeof planFeatures === "object" ? planFeatures : null;
+  const metaFeatures = meta?.features && typeof meta.features === "object" ? meta.features : null;
+  const resolvedFeatures = featuresFromOptions || metaFeatures || null;
+
+  const planFromFeatures = resolvedFeatures?.plan ? normalizePlan(resolvedFeatures.plan) : null;
+  const planFromMeta = meta?.plan ? normalizePlan(meta.plan) : null;
+
+  const effectivePlan = normalizedPlan || planFromFeatures || planFromMeta || null;
+  const allowsCustomSmtp =
+    (effectivePlan && effectivePlan === SubscriptionPlan.ULTRA) ||
+    (resolvedFeatures ? planHasFeature(resolvedFeatures, PlanFeature.SETTINGS_EMAIL_SMTP) : false);
+
+  return {
+    effectivePlan,
+    features: resolvedFeatures,
+    allowsCustomSmtp,
+  };
+}
 
 function hasCustomSmtpConfig(emailSettings) {
   if (!emailSettings || emailSettings.smtpProvider !== "CUSTOM") {
@@ -56,6 +87,9 @@ async function dispatchViaCustomSmtp({ shop, mail, emailSettings, meta }) {
       user,
       pass,
     },
+    connectionTimeout: DEFAULT_CUSTOM_SMTP_TIMEOUT_MS,
+    socketTimeout: DEFAULT_CUSTOM_SMTP_TIMEOUT_MS,
+    greetingTimeout: DEFAULT_CUSTOM_SMTP_TIMEOUT_MS,
   });
 
   try {
@@ -66,6 +100,7 @@ async function dispatchViaCustomSmtp({ shop, mail, emailSettings, meta }) {
         host,
         port,
         secure,
+        timeoutMs: DEFAULT_CUSTOM_SMTP_TIMEOUT_MS,
         event: meta?.event || null,
       });
 
@@ -76,6 +111,7 @@ async function dispatchViaCustomSmtp({ shop, mail, emailSettings, meta }) {
         host,
         port,
         secure,
+        timeoutMs: DEFAULT_CUSTOM_SMTP_TIMEOUT_MS,
       };
     }
 
@@ -105,6 +141,7 @@ async function dispatchViaCustomSmtp({ shop, mail, emailSettings, meta }) {
       subject: mail?.subject || null,
       event: meta?.event || null,
       messageId: info.messageId || null,
+      timeoutMs: DEFAULT_CUSTOM_SMTP_TIMEOUT_MS,
     });
 
     return {
@@ -114,6 +151,7 @@ async function dispatchViaCustomSmtp({ shop, mail, emailSettings, meta }) {
       messageId: info.messageId || null,
       accepted,
       rejected,
+      timeoutMs: DEFAULT_CUSTOM_SMTP_TIMEOUT_MS,
     };
   } catch (error) {
     console.error("Failed to send email via custom SMTP", {
@@ -125,6 +163,7 @@ async function dispatchViaCustomSmtp({ shop, mail, emailSettings, meta }) {
       subject: mail?.subject || null,
       event: meta?.event || null,
       error: error.message,
+      timeoutMs: DEFAULT_CUSTOM_SMTP_TIMEOUT_MS,
     });
 
     return {
@@ -132,7 +171,21 @@ async function dispatchViaCustomSmtp({ shop, mail, emailSettings, meta }) {
       transport: "smtp",
       status: "error",
       error: error.message,
+      timeoutMs: DEFAULT_CUSTOM_SMTP_TIMEOUT_MS,
     };
+  } finally {
+    if (typeof transporter.close === "function") {
+      try {
+        transporter.close();
+      } catch (closeError) {
+        console.warn("Failed to close SMTP transporter", {
+          shop,
+          host,
+          port,
+          error: closeError.message,
+        });
+      }
+    }
   }
 }
 
@@ -213,19 +266,51 @@ export async function dispatchEmailAutomation({
   emailSettings,
   defaultSmtp,
   meta = {},
+  plan,
+  planFeatures,
 }) {
-  if (hasCustomSmtpConfig(emailSettings)) {
-    return dispatchViaCustomSmtp({ shop, mail, emailSettings, meta });
+  const { effectivePlan, features, allowsCustomSmtp } = resolvePlanInfo({
+    plan,
+    planFeatures,
+    meta,
+  });
+
+  const customConfigComplete = hasCustomSmtpConfig(emailSettings);
+
+  const resolvedMeta = { ...meta };
+  if (effectivePlan && !resolvedMeta.plan) {
+    resolvedMeta.plan = effectivePlan;
+  }
+  if (features && !resolvedMeta.features) {
+    resolvedMeta.features = features;
+  }
+
+  if (allowsCustomSmtp && customConfigComplete) {
+    return dispatchViaCustomSmtp({ shop, mail, emailSettings, meta: resolvedMeta });
   }
 
   if (emailSettings?.smtpProvider === "CUSTOM") {
-    console.warn("Custom SMTP selected but configuration is incomplete; falling back to automation handler.", {
-      shop,
-      hasHost: Boolean(emailSettings?.smtpHost),
-      hasPort: emailSettings?.smtpPort !== undefined && emailSettings?.smtpPort !== null,
-      hasUser: Boolean(emailSettings?.smtpUser),
-      hasPass: Boolean(emailSettings?.smtpPass),
-    });
+    if (!allowsCustomSmtp) {
+      console.warn(
+        "Custom SMTP selected but plan is not eligible; falling back to automation handler.",
+        {
+          shop,
+          plan: effectivePlan || null,
+        },
+      );
+    } else {
+      console.warn(
+        "Custom SMTP selected but configuration is incomplete; falling back to automation handler.",
+        {
+          shop,
+          hasHost: Boolean(emailSettings?.smtpHost),
+          hasPort:
+            emailSettings?.smtpPort !== undefined && emailSettings?.smtpPort !== null,
+          hasUser: Boolean(emailSettings?.smtpUser),
+          hasPass: Boolean(emailSettings?.smtpPass),
+        },
+      );
+    }
   }
 
   const endpoint = process.env.AUTOMATIONS_EMAIL_URL?.trim();
@@ -247,7 +332,7 @@ export async function dispatchEmailAutomation({
     mail,
     emailSettings,
     defaultSmtp,
-    meta,
+    meta: resolvedMeta,
     dispatchedAt: new Date().toISOString(),
   };
 

@@ -1,10 +1,21 @@
 import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import { dispatchEmailAutomation } from "../lib/automation.server";
+import { getSubscriptionPlanContext } from "../lib/plans.server";
+import { SubscriptionPlan } from "../lib/plans";
 
 export async function action({ request }) {
   const { session } = await authenticate.admin(request);
-  const { shop } = session;
+  const { shop, subscriptionPlan } = session;
+
+  const planContext = await getSubscriptionPlanContext({ shop, sessionPlan: subscriptionPlan });
+
+  if (planContext.plan !== SubscriptionPlan.ULTRA) {
+    return json(
+      { error: "Custom SMTP is only available on the Ultra plan." },
+      { status: 403 },
+    );
+  }
 
   const formData = await request.formData();
   const smtpHost = formData.get("smtpHost");
@@ -37,6 +48,8 @@ export async function action({ request }) {
       pass: null,
       fromEmail: null,
     },
+    plan: planContext.plan,
+    planFeatures: planContext.features,
     meta: {
       event: "smtp.verify",
       connection: {
@@ -45,6 +58,8 @@ export async function action({ request }) {
         secure: smtpSecure,
         user: smtpUser,
       },
+      plan: planContext.plan,
+      features: planContext.features,
     },
   });
 

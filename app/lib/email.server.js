@@ -88,6 +88,8 @@ export async function sendEmail(shop, mailOptions, options = {}) {
     mail: mailOptions,
     emailSettings: settings,
     defaultSmtp,
+    plan: planContext.plan,
+    planFeatures: planContext.features,
     meta: {
       ...metadata,
       fromEmail: defaultSmtp.fromEmail,

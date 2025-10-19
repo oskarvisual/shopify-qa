@@ -271,7 +271,6 @@ export default function SettingsPage() {
   const emailTestFetcher = useFetcher();
   const billingFetcher = useFetcher();
   const plan = usePlan();
-  const isFreePlan = plan === SubscriptionPlan.FREE;
   const canConfigureWebhooks = usePlanFeature(PlanFeature.SETTINGS_WEBHOOKS);
   const canConfigureAi = usePlanFeature(PlanFeature.SETTINGS_AI);
   const canUseCustomEmail = usePlanFeature(PlanFeature.SETTINGS_EMAIL_SMTP);
@@ -577,8 +576,8 @@ export default function SettingsPage() {
                       onChange={handleChoiceListChange("smtpProvider")}
                       disabled={!canUseCustomEmail}
                     />
-                    {!canUseCustomEmail && isFreePlan && (
-                      renderUpgradeBanner("Custom SMTP is available on the Pro and Ultra plans.", [SubscriptionPlan.PRO, SubscriptionPlan.ULTRA])
+                    {!canUseCustomEmail && (
+                      renderUpgradeBanner("Custom SMTP is available on the Ultra plan.", [SubscriptionPlan.ULTRA])
                     )}
                     <input type="hidden" name="smtpProvider" value={canUseCustomEmail ? (formState.smtpProvider || "APP") : "APP"} />
                     {canUseCustomEmail && formState.smtpProvider === 'CUSTOM' && (
@@ -590,7 +589,7 @@ export default function SettingsPage() {
                         <TextField label="SMTP Password" name="smtpPass" value={formState.smtpPass || ''} onChange={handleFormChange('smtpPass')} autoComplete="password" type="password" />
                         <input type="hidden" name="smtpSecure" value={formState.smtpSecure ? "true" : "false"} />
                         <Checkbox label="Use SSL/TLS" checked={formState.smtpSecure} onChange={handleFormChange('smtpSecure')} />
-                        <Button onClick={handleTestConnection} disabled={fetcher.state === 'submitting'}>{fetcher.state === 'submitting' ? 'Testing...' : 'Test Connection'}</Button>
+                        <Button onClick={handleTestConnection} disabled={emailTestFetcher.state === 'submitting'}>{emailTestFetcher.state === 'submitting' ? 'Testing...' : 'Test Connection'}</Button>
                       </BlockStack>
                     )}
                   </BlockStack>
