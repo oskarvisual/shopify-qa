@@ -426,6 +426,9 @@ export default function SettingsPage() {
   useEffect(() => {
     if (actionData?.success) setShowSuccessBanner(true);
     if (actionData?.error) setShowErrorBanner(true);
+    if ((actionData?.success || actionData?.error) && typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }, [actionData]);
 
   useEffect(() => {
