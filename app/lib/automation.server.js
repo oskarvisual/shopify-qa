@@ -1,5 +1,6 @@
 import { createTransport } from "nodemailer";
 import { SubscriptionPlan, normalizePlan, planHasFeature, PlanFeature } from "./plans";
+import { validateCustomFromAddress, normalizeEmail } from "./email-validation";
 
 const AUTOMATIONS_APP_ID =
   process.env.AUTOMATIONS_APP_ID ||
@@ -44,21 +45,23 @@ function hasCustomSmtpConfig(emailSettings) {
     return false;
   }
 
-  const { smtpHost, smtpPort, smtpUser, smtpPass } = emailSettings;
-
-  if (!smtpHost || typeof smtpHost !== "string" || smtpHost.trim() === "") {
+  const host = typeof emailSettings.smtpHost === "string" ? emailSettings.smtpHost.trim() : "";
+  if (!host) {
     return false;
   }
 
-  if (smtpPort === null || smtpPort === undefined || Number.isNaN(Number(smtpPort))) {
+  const port = Number(emailSettings.smtpPort);
+  if (!Number.isFinite(port) || port <= 0) {
     return false;
   }
 
-  if (!smtpUser || typeof smtpUser !== "string" || smtpUser.trim() === "") {
+  const user = normalizeEmail(emailSettings.smtpUser);
+  if (!user) {
     return false;
   }
 
-  if (!smtpPass || typeof smtpPass !== "string" || smtpPass.trim() === "") {
+  const pass = typeof emailSettings.smtpPass === "string" ? emailSettings.smtpPass.trim() : "";
+  if (!pass) {
     return false;
   }
 
@@ -73,11 +76,12 @@ function resolveSmtpSecureFlag(emailSettings) {
 }
 
 async function dispatchViaCustomSmtp({ shop, mail, emailSettings, meta }) {
-  const host = emailSettings.smtpHost;
+  const host = typeof emailSettings.smtpHost === "string" ? emailSettings.smtpHost.trim() : null;
   const port = Number(emailSettings.smtpPort);
-  const user = emailSettings.smtpUser;
-  const pass = emailSettings.smtpPass;
+  const user = normalizeEmail(emailSettings.smtpUser);
+  const pass = typeof emailSettings.smtpPass === "string" ? emailSettings.smtpPass : null;
   const secure = resolveSmtpSecureFlag(emailSettings);
+  const fromAddress = normalizeEmail(emailSettings.smtpFromEmail) || user;
 
   const transporter = createTransport({
     host,
@@ -115,7 +119,6 @@ async function dispatchViaCustomSmtp({ shop, mail, emailSettings, meta }) {
       };
     }
 
-    const fromAddress = user;
     const message = {
       ...mail,
       from: fromAddress,
@@ -141,6 +144,7 @@ async function dispatchViaCustomSmtp({ shop, mail, emailSettings, meta }) {
       subject: mail?.subject || null,
       event: meta?.event || null,
       messageId: info.messageId || null,
+      from: fromAddress,
       timeoutMs: DEFAULT_CUSTOM_SMTP_TIMEOUT_MS,
     });
 
@@ -163,6 +167,7 @@ async function dispatchViaCustomSmtp({ shop, mail, emailSettings, meta }) {
       subject: mail?.subject || null,
       event: meta?.event || null,
       error: error.message,
+      from: fromAddress,
       timeoutMs: DEFAULT_CUSTOM_SMTP_TIMEOUT_MS,
     });
 
@@ -276,6 +281,36 @@ export async function dispatchEmailAutomation({
   });
 
   const customConfigComplete = hasCustomSmtpConfig(emailSettings);
+  const shouldValidateCustom = emailSettings?.smtpProvider === "CUSTOM";
+  const emailValidation = shouldValidateCustom
+    ? validateCustomFromAddress({
+        smtpUser: emailSettings?.smtpUser,
+        smtpFromEmail: emailSettings?.smtpFromEmail,
+      })
+    : {
+        ok: true,
+        smtpUser: normalizeEmail(emailSettings?.smtpUser),
+        smtpFromEmail: normalizeEmail(emailSettings?.smtpFromEmail) || null,
+      };
+
+  if (shouldValidateCustom && !emailValidation.ok) {
+    console.warn("Custom SMTP validation failed; falling back to automation handler.", {
+      shop,
+      reason: emailValidation.error,
+    });
+  }
+
+  const sanitizedEmailSettings = emailValidation.ok
+    ? {
+        ...emailSettings,
+        ...(emailValidation.smtpUser !== undefined
+          ? { smtpUser: emailValidation.smtpUser }
+          : {}),
+        ...(emailValidation.smtpFromEmail !== undefined
+          ? { smtpFromEmail: emailValidation.smtpFromEmail }
+          : {}),
+      }
+    : emailSettings;
 
   const resolvedMeta = { ...meta };
   if (effectivePlan && !resolvedMeta.plan) {
@@ -285,8 +320,11 @@ export async function dispatchEmailAutomation({
     resolvedMeta.features = features;
   }
 
-  if (allowsCustomSmtp && customConfigComplete) {
-    return dispatchViaCustomSmtp({ shop, mail, emailSettings, meta: resolvedMeta });
+  const canUseValidatedCustom =
+    allowsCustomSmtp && customConfigComplete && (!shouldValidateCustom || emailValidation.ok);
+
+  if (canUseValidatedCustom) {
+    return dispatchViaCustomSmtp({ shop, mail, emailSettings: sanitizedEmailSettings, meta: resolvedMeta });
   }
 
   if (emailSettings?.smtpProvider === "CUSTOM") {
@@ -298,7 +336,7 @@ export async function dispatchEmailAutomation({
           plan: effectivePlan || null,
         },
       );
-    } else {
+    } else if (!customConfigComplete) {
       console.warn(
         "Custom SMTP selected but configuration is incomplete; falling back to automation handler.",
         {
@@ -308,6 +346,7 @@ export async function dispatchEmailAutomation({
             emailSettings?.smtpPort !== undefined && emailSettings?.smtpPort !== null,
           hasUser: Boolean(emailSettings?.smtpUser),
           hasPass: Boolean(emailSettings?.smtpPass),
+          hasFrom: Boolean(emailSettings?.smtpFromEmail),
         },
       );
     }
@@ -330,7 +369,7 @@ export async function dispatchEmailAutomation({
     appId: AUTOMATIONS_APP_ID,
     shop,
     mail,
-    emailSettings,
+    emailSettings: sanitizedEmailSettings,
     defaultSmtp,
     meta: resolvedMeta,
     dispatchedAt: new Date().toISOString(),

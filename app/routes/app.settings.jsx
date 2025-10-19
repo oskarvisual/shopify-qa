@@ -24,6 +24,7 @@ import { authenticate } from "../shopify.server";
 import { usePlan, usePlanFeature } from "../lib/plan-context";
 import { PlanFeature, SubscriptionPlan, getBillingButtonLabel, getBillingPlan, isAtLeastPlan, planHasFeature } from "../lib/plans";
 import { getSubscriptionPlanContext } from "../lib/plans.server";
+import { validateCustomFromAddress } from "../lib/email-validation";
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -90,6 +91,7 @@ export const loader = async ({ request }) => {
       smtpHost: null,
       smtpPort: null,
       smtpUser: null,
+      smtpFromEmail: null,
       smtpPass: null,
       smtpSecure: true,
     });
@@ -147,6 +149,7 @@ export const action = async ({ request }) => {
       smtpHost: formData.get("smtpHost") || null,
       smtpPort: Number(formData.get("smtpPort") || 0),
       smtpUser: formData.get("smtpUser") || null,
+      smtpFromEmail: formData.get("smtpFromEmail") || null,
       smtpPass: formData.get("smtpPass") || null,
       smtpSecure: formData.get("smtpSecure") === "true",
       answerEmailSubject: formData.get("answerEmailSubject") || null,
@@ -214,11 +217,26 @@ export const action = async ({ request }) => {
       Object.assign(emailData, {
         smtpProvider: "APP",
         smtpHost: null,
-        smtpPort: 0,
+        smtpPort: null,
         smtpUser: null,
+        smtpFromEmail: null,
         smtpPass: null,
         smtpSecure: true,
       });
+    } else if (emailData.smtpProvider === "CUSTOM") {
+      const customValidation = validateCustomFromAddress({
+        smtpUser: emailData.smtpUser,
+        smtpFromEmail: emailData.smtpFromEmail,
+      });
+
+      if (!customValidation.ok) {
+        return json({ error: customValidation.error }, { status: 400 });
+      }
+
+      emailData.smtpUser = customValidation.smtpUser;
+      emailData.smtpFromEmail = customValidation.smtpFromEmail;
+    } else {
+      emailData.smtpFromEmail = null;
     }
 
     if (!planHasFeature(planFeatures, PlanFeature.SETTINGS_AI)) {
@@ -306,6 +324,7 @@ export default function SettingsPage() {
     translationAiSuggestedAnswerLabel: translationSettings?.aiSuggestedAnswerLabel || "",
     translationAiHelpfulButton: translationSettings?.aiHelpfulButton || "",
     translationAiNotHelpfulButton: translationSettings?.aiNotHelpfulButton || "",
+    smtpFromEmail: emailSettings?.smtpFromEmail || "",
   });
 
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
@@ -379,6 +398,7 @@ export default function SettingsPage() {
         smtpHost: "",
         smtpPort: "",
         smtpUser: "",
+        smtpFromEmail: "",
         smtpPass: "",
         smtpSecure: true,
       }));
@@ -425,6 +445,7 @@ export default function SettingsPage() {
     formData.append("smtpHost", formState.smtpHost || "");
     formData.append("smtpPort", formState.smtpPort || "");
     formData.append("smtpUser", formState.smtpUser || "");
+    formData.append("smtpFromEmail", formState.smtpFromEmail || "");
     formData.append("smtpPass", formState.smtpPass || "");
     formData.append("smtpSecure", formState.smtpSecure ? "true" : "false");
     emailTestFetcher.submit(formData, { method: "post", action: "/api/email-test" });
@@ -452,7 +473,6 @@ export default function SettingsPage() {
             <BlockStack gap="500">
               {successBanner}
               {errorBanner}
-              {testBanner}
             </BlockStack>
           </Layout.Section>
 
@@ -586,10 +606,12 @@ export default function SettingsPage() {
                         <TextField label="SMTP Host" name="smtpHost" value={formState.smtpHost || ''} onChange={handleFormChange('smtpHost')} autoComplete="off" />
                         <TextField label="SMTP Port" name="smtpPort" value={formState.smtpPort || ''} onChange={handleFormChange('smtpPort')} autoComplete="off" type="number" />
                         <TextField label="SMTP Username" name="smtpUser" value={formState.smtpUser || ''} onChange={handleFormChange('smtpUser')} autoComplete="off" />
+                        <TextField label="From Email" name="smtpFromEmail" value={formState.smtpFromEmail || ''} onChange={handleFormChange('smtpFromEmail')} autoComplete="off" helpText="Must be a valid email using the same domain as the SMTP username." />
                         <TextField label="SMTP Password" name="smtpPass" value={formState.smtpPass || ''} onChange={handleFormChange('smtpPass')} autoComplete="password" type="password" />
                         <input type="hidden" name="smtpSecure" value={formState.smtpSecure ? "true" : "false"} />
                         <Checkbox label="Use SSL/TLS" checked={formState.smtpSecure} onChange={handleFormChange('smtpSecure')} />
                         <Button onClick={handleTestConnection} disabled={emailTestFetcher.state === 'submitting'}>{emailTestFetcher.state === 'submitting' ? 'Testing...' : 'Test Connection'}</Button>
+                        {testBanner}
                       </BlockStack>
                     )}
                   </BlockStack>

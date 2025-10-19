@@ -3,6 +3,7 @@ import { authenticate } from "../shopify.server";
 import { dispatchEmailAutomation } from "../lib/automation.server";
 import { getSubscriptionPlanContext } from "../lib/plans.server";
 import { SubscriptionPlan } from "../lib/plans";
+import { validateCustomFromAddress } from "../lib/email-validation";
 
 export async function action({ request }) {
   const { session } = await authenticate.admin(request);
@@ -21,11 +22,21 @@ export async function action({ request }) {
   const smtpHost = formData.get("smtpHost");
   const smtpPort = Number(formData.get("smtpPort") || 0);
   const smtpUser = formData.get("smtpUser");
+  const smtpFromEmail = formData.get("smtpFromEmail");
   const smtpPass = formData.get("smtpPass");
   const smtpSecure = formData.get("smtpSecure") === "true";
 
   if (!smtpHost || !smtpPort || !smtpUser) {
     return json({ error: "Host, Port, and Username are required." }, { status: 400 });
+  }
+
+  const customValidation = validateCustomFromAddress({
+    smtpUser,
+    smtpFromEmail,
+  });
+
+  if (!customValidation.ok) {
+    return json({ error: customValidation.error }, { status: 400 });
   }
 
   const response = await dispatchEmailAutomation({
@@ -36,7 +47,8 @@ export async function action({ request }) {
       smtpProvider: "CUSTOM",
       smtpHost,
       smtpPort,
-      smtpUser,
+      smtpUser: customValidation.smtpUser,
+      smtpFromEmail: customValidation.smtpFromEmail,
       smtpPass,
       smtpSecure,
     },
@@ -56,7 +68,8 @@ export async function action({ request }) {
         host: smtpHost,
         port: smtpPort,
         secure: smtpSecure,
-        user: smtpUser,
+        user: customValidation.smtpUser,
+        from: customValidation.smtpFromEmail || customValidation.smtpUser,
       },
       plan: planContext.plan,
       features: planContext.features,

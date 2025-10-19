@@ -108,6 +108,7 @@ model EmailSetting {
   smtpHost             String?
   smtpPort             Int?
   smtpUser             String?
+  smtpFromEmail        String?
   smtpPass             String?
   smtpSecure           Boolean   @default(true)
 
