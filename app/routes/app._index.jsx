@@ -160,7 +160,7 @@ export const loader = async ({ request }) => {
       const entry = aiActivityChartData.find(d => d.date === log.createdAt.toISOString().split('T')[0]);
       if (entry) {
         entry.aiQuestions++;
-        if (log.vote !== null) entry.customerVotes++;
+        if (log.vote === 1) entry.customerVotes++;
         if (!log.noAnswer) entry.successfulAnswers++;
         if (log.askedHuman) entry.escalatedToHuman++;
       }
