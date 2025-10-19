@@ -13,8 +13,7 @@
         <p><strong id="qa-suggested-answer-label">Suggested Answer:</strong></p>
         <div id="qa-ai-answer"></div>
         <div class="qa-vote-container">
-          <button type="button" class="btn-vote helpful"></button>
-          <button type="button" class="btn-vote not-helpful"></button>
+          <button type="button" class="btn-vote"></button>
         </div>
         <div class="qa-ai-options">
           <p id="qa-human-prompt"></p>
@@ -61,8 +60,7 @@
           <p><strong id="qa-suggested-answer-label-modal">Suggested Answer:</strong></p>
           <div id="qa-ai-answer-modal"></div>
           <div class="qa-vote-container-modal">
-            <button type="button" class="btn-vote helpful"></button>
-            <button type="button" class="btn-vote not-helpful"></button>
+            <button type="button" class="btn-vote"></button>
           </div>
           <div class="qa-ai-options">
             <p id="qa-human-prompt-modal"></p>
@@ -121,8 +119,11 @@
   .btn[disabled] { opacity: 0.7; cursor: not-allowed; }
   #qa-ai-response-container, #qa-ai-response-container-modal { padding: 15px; border: 1px solid #e1e1e1; border-radius: 6px; margin-bottom: 20px; background: #f9f9f9; }
   #qa-ai-answer, #qa-ai-answer-modal { margin-bottom: 15px; white-space: pre-wrap; }
-  .qa-vote-container, .qa-vote-container-modal { display: flex; justify-content: center; gap: 10px; margin-bottom: 15px; }
-  .btn-vote { padding: 8px 16px; }
+  .qa-vote-container, .qa-vote-container-modal { display: flex; justify-content: center; margin-bottom: 15px; }
+  .btn-vote { padding: 8px 16px; min-width: 140px; text-align: center; border: 1px solid var(--p-border, #d0d0d0); background: var(--p-surface, #f6f6f7); border-radius: 4px; cursor: pointer; }
+  .btn-vote:hover:not([disabled]) { background: var(--p-surface-subdued, #e4e5e7); }
+  .btn-vote.voted { background: var(--p-surface-highlight, #d6f4ff); border-color: var(--p-border-highlight, #5bc4ff); cursor: default; }
+  .btn-vote:disabled { opacity: 0.6; cursor: default; }
   .qa-ai-options { margin-top: 15px; border-top: 1px solid #e1e1e1; padding-top: 15px; text-align: center; }
   .qa-ai-options p { margin: 0 0 10px; font-size: 14px; }
   .qa-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
@@ -147,7 +148,7 @@ document.addEventListener('DOMContentLoaded', function() {
         aiBypassButton: 'Or, ask a human',
         aiSuggestedAnswerLabel: 'Suggested Answer:',
         aiHelpfulButton: 'Helpful',
-        aiNotHelpfulButton: 'Not Helpful'
+        aiHelpfulVoted: 'Voted!'
     };
 
     window.openQAModal = function() { if (sharedModal) sharedModal.style.display = 'block'; };
@@ -218,6 +219,7 @@ document.addEventListener('DOMContentLoaded', function() {
         elements.bypassAiBtn.style.display = 'none';
         elements.submitBtn.style.display = 'inline-block';
         humanMode = true;
+        resetVoteButton();
       }
 
       function setInitialState(aiEnabled) {
@@ -236,13 +238,28 @@ document.addEventListener('DOMContentLoaded', function() {
       elements.askHumanBtn.addEventListener('click', showHumanForm);
       elements.bypassAiBtn.addEventListener('click', showHumanForm);
 
-      elements.voteContainer.addEventListener('click', (e) => {
-        if (e.target.classList.contains('btn-vote')) {
-            const voteValue = e.target.classList.contains('helpful') ? 1 : -1;
-            updateAiLog({ vote: voteValue });
-            elements.voteContainer.innerHTML = '<p>Thanks for your feedback!</p>';
-        }
-      });
+      function resetVoteButton() {
+        if (!elements.voteContainer) return;
+        const button = elements.voteContainer.querySelector('.btn-vote');
+        if (!button) return;
+        button.disabled = false;
+        button.classList.remove('voted');
+        button.textContent = texts.aiHelpfulButton;
+      }
+
+      if (elements.voteContainer) {
+        elements.voteContainer.addEventListener('click', (e) => {
+          const button = e.target.closest('.btn-vote');
+          if (!button || button.disabled) {
+            return;
+          }
+          updateAiLog({ vote: 1 });
+          button.disabled = true;
+          button.classList.add('voted');
+          button.textContent = texts.aiHelpfulVoted;
+        });
+        resetVoteButton();
+      }
 
       elements.askAiBtn.addEventListener('click', async () => {
         const question = elements.questionTextarea.value.trim();
@@ -277,6 +294,7 @@ document.addEventListener('DOMContentLoaded', function() {
             elements.questionContainer.style.display = 'none';
             elements.askAiBtn.style.display = 'none';
             elements.submitBtn.style.display = 'none';
+            resetVoteButton();
           }
         } catch (error) {
           console.error('AI Answer fetch error:', error);
@@ -375,7 +393,8 @@ document.addEventListener('DOMContentLoaded', function() {
             ...(translations.aiBypassButton && { aiBypassButton: translations.aiBypassButton }),
             ...(translations.aiSuggestedAnswerLabel && { aiSuggestedAnswerLabel: translations.aiSuggestedAnswerLabel }),
             ...(translations.aiHelpfulButton && { aiHelpfulButton: translations.aiHelpfulButton }),
-            ...(translations.aiNotHelpfulButton && { aiNotHelpfulButton: translations.aiNotHelpfulButton }),
+            ...(!translations.aiHelpfulButton && translations.displayHelpfulText ? { aiHelpfulButton: translations.displayHelpfulText } : {}),
+            ...(translations.displayVotedText && { aiHelpfulVoted: translations.displayVotedText }),
         };
 
         if (elements.submitBtn) {
@@ -392,10 +411,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if(elements.askHumanBtn) elements.askHumanBtn.textContent = texts.aiHumanButton;
         if(elements.bypassAiBtn) elements.bypassAiBtn.textContent = texts.aiBypassButton;
 
-        const helpfulBtn = elements.voteContainer.querySelector('.helpful');
-        if(helpfulBtn) helpfulBtn.textContent = texts.aiHelpfulButton;
-        const notHelpfulBtn = elements.voteContainer.querySelector('.not-helpful');
-        if(notHelpfulBtn) notHelpfulBtn.textContent = texts.aiNotHelpfulButton;
+        resetVoteButton();
       }
 
       return { setInitialState, applyTranslations };
