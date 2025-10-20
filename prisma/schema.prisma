@@ -66,6 +66,7 @@ model Answer {
 
   @@index([shop, questionId])
   @@index([questionId])
+  @@unique([shop, questionId, answer(length: 255)])
 }
 
 model VoteLog {

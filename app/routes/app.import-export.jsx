@@ -389,7 +389,7 @@ export const action = async ({ request }) => {
       } catch (e) {
         errorCount++;
         if (e.code === 'P2002') {
-          errors.push(`Row ${rowNumber}: Duplicate answer detected`);
+          errors.push(`Row ${rowNumber}: Duplicate answer detected for question '${importId}' - this answer already exists`);
         } else {
           errors.push(`Row ${rowNumber}: Database error - ${e.message}`);
         }

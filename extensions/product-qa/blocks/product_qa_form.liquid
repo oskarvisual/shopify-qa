@@ -15,8 +15,14 @@
         <p><strong id="qa-suggested-answer-label">Suggested Answer:</strong></p>
         <div id="qa-ai-answer"></div>
         <div class="qa-vote-container">
-          <button type="button" class="btn-vote btn-vote-helpful" data-vote="1"></button>
-          <button type="button" class="btn-vote btn-vote-not-helpful" data-vote="-1"></button>
+          <button type="button" class="btn-vote btn-vote-helpful" data-vote="1">
+            <svg class="vote-icon" width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6z"></path></svg>
+            <span class="vote-label"></span>
+          </button>
+          <button type="button" class="btn-vote btn-vote-not-helpful" data-vote="-1">
+            <svg class="vote-icon vote-icon-down" width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667V3a1 1 0 00-1-1H6.242a1 1 0 00-.97 1.222l1.036 4.143a1 1 0 00.97 1.222h3.136V12.5a1 1 0 002 0V9.667h1.586z"></path></svg>
+            <span class="vote-label"></span>
+          </button>
         </div>
         <div class="qa-ai-options">
           <p id="qa-human-prompt"></p>
@@ -63,8 +69,14 @@
           <p><strong id="qa-suggested-answer-label-modal">Suggested Answer:</strong></p>
           <div id="qa-ai-answer-modal"></div>
           <div class="qa-vote-container-modal">
-            <button type="button" class="btn-vote btn-vote-helpful" data-vote="1"></button>
-            <button type="button" class="btn-vote btn-vote-not-helpful" data-vote="-1"></button>
+            <button type="button" class="btn-vote btn-vote-helpful" data-vote="1">
+              <svg class="vote-icon" width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6z"></path></svg>
+              <span class="vote-label"></span>
+            </button>
+            <button type="button" class="btn-vote btn-vote-not-helpful" data-vote="-1">
+              <svg class="vote-icon vote-icon-down" width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667V3a1 1 0 00-1-1H6.242a1 1 0 00-.97 1.222l1.036 4.143a1 1 0 00.97 1.222h3.136V12.5a1 1 0 002 0V9.667h1.586z"></path></svg>
+              <span class="vote-label"></span>
+            </button>
           </div>
           <div class="qa-ai-options">
             <p id="qa-human-prompt-modal"></p>
@@ -123,9 +135,11 @@
   .btn[disabled] { opacity: 0.7; cursor: not-allowed; }
   #qa-ai-response-container, #qa-ai-response-container-modal { padding: 15px; border: 1px solid #e1e1e1; border-radius: 6px; margin-bottom: 20px; background: #f9f9f9; }
   #qa-ai-answer, #qa-ai-answer-modal { margin-bottom: 15px; white-space: pre-wrap; }
-  .qa-vote-container, .qa-vote-container-modal { display: flex; justify-content: center; gap: 10px; margin-bottom: 15px; }
-  .btn-vote { padding: 8px 16px; min-width: 120px; text-align: center; border: 1px solid var(--p-border, #d0d0d0); background: var(--p-surface, #f6f6f7); border-radius: 4px; cursor: pointer; font-size: 14px; transition: all 0.2s ease; }
+  .qa-vote-container, .qa-vote-container-modal { display: flex; justify-content: center; gap: 10px; margin-bottom: 15px; position: relative; }
+  .btn-vote { padding: 8px 16px; min-width: 120px; text-align: center; border: 1px solid var(--p-border, #d0d0d0); background: var(--p-surface, #f6f6f7); border-radius: 4px; cursor: pointer; font-size: 14px; transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
   .btn-vote:hover:not([disabled]) { background: var(--p-surface-subdued, #e4e5e7); transform: translateY(-1px); }
+  .btn-vote .vote-icon { width: 16px; height: 16px; flex-shrink: 0; }
+  .btn-vote .vote-icon-down { transform: rotate(180deg); }
   .btn-vote-helpful { background: #e8f5e9; border-color: #4caf50; color: #2e7d32; }
   .btn-vote-helpful:hover:not([disabled]) { background: #c8e6c9; }
   .btn-vote-helpful.voted { background: #4caf50; border-color: #388e3c; color: white; cursor: default; }
@@ -255,8 +269,12 @@ document.addEventListener('DOMContentLoaded', function() {
         buttons.forEach(button => {
           button.disabled = false;
           button.classList.remove('voted');
-          const defaultLabel = button.dataset.defaultText || texts.aiHelpfulButton;
-          button.textContent = defaultLabel;
+          const isHelpful = button.classList.contains('btn-vote-helpful');
+          const defaultLabel = button.dataset.defaultText || (isHelpful ? texts.aiHelpfulButton : texts.aiNotHelpfulButton);
+          const labelSpan = button.querySelector('.vote-label');
+          if (labelSpan) {
+            labelSpan.textContent = defaultLabel;
+          }
         });
       }
 
@@ -275,7 +293,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
           // Mark this button as voted
           button.classList.add('voted');
-          button.textContent = isHelpful ? texts.aiHelpfulVoted : texts.aiNotHelpfulVoted;
+          const labelSpan = button.querySelector('.vote-label');
+          if (labelSpan) {
+            labelSpan.textContent = isHelpful ? texts.aiHelpfulVoted : texts.aiNotHelpfulVoted;
+          }
 
           // Send vote to backend
           updateAiLog({ vote: voteValue });
@@ -440,11 +461,17 @@ document.addEventListener('DOMContentLoaded', function() {
           const notHelpfulButton = elements.voteContainer.querySelector('.btn-vote-not-helpful');
           if (helpfulButton) {
             helpfulButton.dataset.defaultText = texts.aiHelpfulButton;
-            helpfulButton.textContent = texts.aiHelpfulButton;
+            const labelSpan = helpfulButton.querySelector('.vote-label');
+            if (labelSpan) {
+              labelSpan.textContent = texts.aiHelpfulButton;
+            }
           }
           if (notHelpfulButton) {
             notHelpfulButton.dataset.defaultText = texts.aiNotHelpfulButton;
-            notHelpfulButton.textContent = texts.aiNotHelpfulButton;
+            const labelSpan = notHelpfulButton.querySelector('.vote-label');
+            if (labelSpan) {
+              labelSpan.textContent = texts.aiNotHelpfulButton;
+            }
           }
         }
         resetVoteButtons();
