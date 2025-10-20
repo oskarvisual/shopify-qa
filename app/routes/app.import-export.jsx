@@ -105,19 +105,26 @@ export const action = async ({ request }) => {
   }
 
   if (actionType === "export-answers") {
-    // Get questions to create mapping from internal ID to export ID
+    // Get questions to create mapping from internal ID to export ID and store question details
     const questions = await prisma.question.findMany({ where: { shop }, orderBy: { createdAt: "desc" } });
     const questionIdToExportId = {};
+    const questionDetails = {};
     questions.forEach((q, index) => {
-      questionIdToExportId[q.id] = `q${index + 1}`;
+      const exportId = `q${index + 1}`;
+      questionIdToExportId[q.id] = exportId;
+      questionDetails[q.id] = {
+        productId: q.productId,
+        question: q.question
+      };
     });
 
     const answers = await prisma.answer.findMany({ where: { question: { shop } }, orderBy: { createdAt: "desc" } });
-    const csvHeaders = ["question_export_id", "authorName", "authorEmail", "answer", "isPublished", "createdAt"].join(",");
+    const csvHeaders = ["question_export_id", "productId", "question", "authorName", "authorEmail", "answer", "isPublished", "createdAt"].join(",");
     const csvRows = answers.map((a) => {
       const escapeCsv = (str) => `"${String(str || "").replace(/"/g, '""')}"`
       const exportId = questionIdToExportId[a.questionId] || "unknown";
-      return [exportId, escapeCsv(a.authorName), escapeCsv(a.authorEmail), escapeCsv(a.answer), a.isPublished, a.createdAt.toISOString()].join(",");
+      const qDetails = questionDetails[a.questionId] || {};
+      return [exportId, qDetails.productId || "", escapeCsv(qDetails.question), escapeCsv(a.authorName), escapeCsv(a.authorEmail), escapeCsv(a.answer), a.isPublished, a.createdAt.toISOString()].join(",");
     });
     const csvContent = [csvHeaders, ...csvRows].join("\n");
     const filename = `answers-export-${today}.csv`;
@@ -664,10 +671,10 @@ export default function ImportExportPage() {
             </Text>
             <Text as="h4" variant="headingSm">Step 2: For Answers (answers.csv)</Text>
             <pre><code>
-              {`question_export_id,authorName,authorEmail,answer,isPublished,createdAt\n"q1","Shop Owner","owner@example.com","It is 100% cotton.","true","2025-01-02T00:00:00.000Z"`}
+              {`question_export_id,productId,question,authorName,authorEmail,answer,isPublished,createdAt\n"q1","8954910335289","What is the fabric?","Shop Owner","owner@example.com","It is 100% cotton.","true","2025-01-02T00:00:00.000Z"`}
             </code></pre>
             <Text as="p" tone="subdued">
-              The `question_export_id` in this file **must** match an ID from your `questions.csv` file.
+              The `question_export_id` in this file **must** match an ID from your `questions.csv` file. The `productId` and `question` fields are included for reference and context.
             </Text>
           </BlockStack>
         </Card>
