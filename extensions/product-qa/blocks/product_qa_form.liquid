@@ -1,10 +1,12 @@
 {% comment %}
-  Product Q&A Form Block v12
+  Product Q&A Form Block v13
   - Handles both an inline form and a shared modal form.
   - Implements AI-first workflow for customer questions.
   - Two-button AI voting system (Helpful/Not Helpful)
+  - AI vote buttons with SVG icons and proper translations
+  Cache: v13-2025-01-19
 {% endcomment %}
-<!-- QA Form v12 with two-button AI voting -->
+<!-- QA Form v13 with AI vote buttons fix -->
 
 <div class="product-qa-wrapper" data-product-id="{{ product.id }}">
   <!-- Always Visible INLINE Form -->
@@ -154,7 +156,7 @@
   .close-modal { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
 </style>
 
-<script>
+<script data-qa-form-version="v13-20250119">
 document.addEventListener('DOMContentLoaded', function() {
     const productId = document.querySelector('.product-qa-wrapper')?.dataset.productId;
     const shopDomain = '{{ shop.domain }}';
