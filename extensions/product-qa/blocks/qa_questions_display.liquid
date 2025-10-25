@@ -583,8 +583,8 @@
     }
 
     async function checkAllVoteStatuses() {
-      // Check ALL buttons, not just those without .voted class
-      const voteButtons = document.querySelectorAll('.btn-vote');
+      // Check only buttons within the Q&A display list, not form buttons
+      const voteButtons = qaList.querySelectorAll('.btn-vote');
 
       for (const button of voteButtons) {
         // Skip if button is currently in voting state
