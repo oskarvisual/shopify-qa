@@ -18,7 +18,12 @@
       "Bash(rm:*)",
       "Bash(git push:*)",
       "Bash(curl:*)",
-      "Bash(ngrok:*)"
+      "Bash(ngrok:*)",
+      "Bash(for file in app/routes/*.server.js)",
+      "Bash(do mv \"$file\" \"$file/.server.js/.js\")",
+      "Bash(done)",
+      "Bash(find:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []
