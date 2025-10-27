@@ -10,15 +10,48 @@ export async function loader({ request }) {
     return cors(request, json({ error: "Missing shop" }, { status: 400 }));
   }
 
-  const translations = await prisma.config.findMany({
-    where: { key: { startsWith: `translations.${shop}` } },
+  const baseKey = `translations.${shop}`;
+  let result = {};
+
+  const bundledTranslations = await prisma.config.findUnique({
+    where: { key: baseKey },
   });
 
-  const result = translations.reduce((acc, row) => {
-    const key = row.key.replace(`translations.${shop}.`, "");
-    acc[key] = row.value;
-    return acc;
-  }, {});
+  if (bundledTranslations?.value) {
+    try {
+      const parsed = JSON.parse(bundledTranslations.value);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        result = parsed;
+      }
+    } catch (error) {
+      console.warn("Failed to parse bundled translations config", error);
+    }
+  }
+
+  if (Object.keys(result).length === 0) {
+    const translationEntries = await prisma.config.findMany({
+      where: { key: { startsWith: `${baseKey}.` } },
+    });
+
+    result = translationEntries.reduce((acc, row) => {
+      const key = row.key.replace(`${baseKey}.`, "");
+      if (!key) return acc;
+
+      let value = row.value;
+      if (typeof value === "string") {
+        try {
+          const parsedValue = JSON.parse(value);
+          if (typeof parsedValue === "string") {
+            value = parsedValue;
+          }
+        } catch {
+          // Leave value as-is if it is not JSON encoded.
+        }
+      }
+      acc[key] = value;
+      return acc;
+    }, {});
+  }
 
   return cors(request, json({ translations: result }));
 }
