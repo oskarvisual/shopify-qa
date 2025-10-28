@@ -1,13 +1,14 @@
 {% comment %}
-  Q&A Ask Question Form Block v15
+  Q&A Ask Question Form Block v16
   - Handles both an inline form and a shared modal form.
   - Implements AI-first workflow for customer questions.
   - Two-button AI voting system (Helpful/Not Helpful)
   - AI vote buttons with SVG icons and proper translations
   - Fixed CSS specificity conflict with display block
-  Cache: v15-2025-10-28
+  - Fixed vote button text initialization and translation loading
+  Cache: v16-2025-10-28
 {% endcomment %}
-<!-- QA Form v15 - Fix CSS conflicts with display block - 2025-10-28 -->
+<!-- QA Form v16 - Fix vote button translation loading - 2025-10-28 -->
 
 <div class="product-qa-wrapper" data-product-id="{{ product.id }}">
   <!-- Always Visible INLINE Form -->
@@ -157,7 +158,7 @@
   .close-modal { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
 </style>
 
-<script data-qa-form-version="v15-20251028">
+<script data-qa-form-version="v16-20251028">
 document.addEventListener('DOMContentLoaded', function() {
     const productId = document.querySelector('.product-qa-wrapper')?.dataset.productId;
     const shopDomain = '{{ shop.domain }}';
@@ -304,7 +305,7 @@ document.addEventListener('DOMContentLoaded', function() {
           // Send vote to backend
           updateAiLog({ vote: voteValue });
         });
-        resetVoteButtons();
+        // Don't reset here - wait for translations to load first
       }
 
       elements.askAiBtn.addEventListener('click', async () => {
@@ -477,7 +478,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
           }
         }
-        resetVoteButtons();
+        // Don't call resetVoteButtons() here - we just set the labels above
       }
 
       return { setInitialState, applyTranslations };
