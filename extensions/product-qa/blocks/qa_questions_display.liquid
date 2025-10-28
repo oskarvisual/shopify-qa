@@ -1,9 +1,10 @@
 {% comment %}
-  Q&A Questions Display Block v14
+  Q&A Questions Display Block v15
   Shows existing questions and answers for a product
-  Updated: Cache refresh v14-2025-01-25
+  Fixed CSS specificity conflict with form block
+  Updated: Cache refresh v15-2025-10-28
 {% endcomment %}
-<!-- QA Display v14 - AI vote buttons with icon fix - 2025-01-25 -->
+<!-- QA Display v15 - Fix CSS conflicts with form block - 2025-10-28 -->
 
 <div class="product-qa-display qa-translations-hidden" data-product-id="{{ product.id }}">
 
@@ -208,7 +209,7 @@
     margin-bottom: 8px;
   }
 
-  .btn {
+  .product-qa-display .btn {
     padding: 8px 16px;
     border: none;
     border-radius: 6px;
@@ -218,7 +219,7 @@
     transition: all 0.3s ease;
   }
 
-  .btn-vote {
+  .product-qa-display .btn-vote {
     background: {{ block.settings.vote_button_color | default: '#007cba' }};
     color: #fff;
     padding: 6px 12px;
@@ -232,51 +233,51 @@
     transition: all 0.3s ease;
   }
 
-  .btn-vote:hover {
+  .product-qa-display .btn-vote:hover {
     background: {{ block.settings.vote_button_color | default: '#007cba' | color_darken: 10 }};
     transform: translateY(-1px);
   }
 
-  .btn-vote.voted {
+  .product-qa-display .btn-vote.voted {
     background: #cccccc;
     color: #666666;
     cursor: not-allowed;
     opacity: 0.6;
   }
 
-  .btn-vote.voted:hover {
+  .product-qa-display .btn-vote.voted:hover {
     background: #cccccc;
     color: #666666;
     transform: none;
     cursor: not-allowed;
   }
 
-  .btn-vote:disabled {
+  .product-qa-display .btn-vote:disabled {
     background: #cccccc;
     color: #666666;
     cursor: not-allowed;
     opacity: 0.6;
   }
 
-  .btn-vote:disabled:hover {
+  .product-qa-display .btn-vote:disabled:hover {
     background: #cccccc;
     color: #666666;
     transform: none;
   }
 
-  .btn-vote.voting {
+  .product-qa-display .btn-vote.voting {
     background: #ffa500;
     color: #ffffff;
     cursor: not-allowed;
   }
 
-  .btn-vote.voting:hover {
+  .product-qa-display .btn-vote.voting:hover {
     background: #ffa500;
     color: #ffffff;
     transform: none;
   }
 
-  .vote-icon {
+  .product-qa-display .vote-icon {
     width: 12px;
     height: 12px;
   }
@@ -304,7 +305,7 @@
   }
 </style>
 
-<script data-qa-display-version="v14-20250125">
+<script data-qa-display-version="v15-20251028">
   document.addEventListener('DOMContentLoaded', async function() {
     const productId = document.querySelector('[data-product-id]')?.dataset.productId;
     const qaList = document.getElementById('qa-list');

@@ -1,12 +1,13 @@
 {% comment %}
-  Q&A Ask Question Form Block v14
+  Q&A Ask Question Form Block v15
   - Handles both an inline form and a shared modal form.
   - Implements AI-first workflow for customer questions.
   - Two-button AI voting system (Helpful/Not Helpful)
   - AI vote buttons with SVG icons and proper translations
-  Cache: v14-2025-01-25
+  - Fixed CSS specificity conflict with display block
+  Cache: v15-2025-10-28
 {% endcomment %}
-<!-- QA Form v14 - AI vote buttons with icon fix - 2025-01-25 -->
+<!-- QA Form v15 - Fix CSS conflicts with display block - 2025-10-28 -->
 
 <div class="product-qa-wrapper" data-product-id="{{ product.id }}">
   <!-- Always Visible INLINE Form -->
@@ -138,17 +139,17 @@
   #qa-ai-response-container, #qa-ai-response-container-modal { padding: 15px; border: 1px solid #e1e1e1; border-radius: 6px; margin-bottom: 20px; background: #f9f9f9; }
   #qa-ai-answer, #qa-ai-answer-modal { margin-bottom: 15px; white-space: pre-wrap; }
   .qa-vote-container, .qa-vote-container-modal { display: flex; justify-content: center; gap: 10px; margin-bottom: 15px; position: relative; }
-  .btn-vote { padding: 8px 16px; min-width: 120px; text-align: center; border: 1px solid var(--p-border, #d0d0d0); background: var(--p-surface, #f6f6f7); border-radius: 4px; cursor: pointer; font-size: 14px; transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-  .btn-vote:hover:not([disabled]) { background: var(--p-surface-subdued, #e4e5e7); transform: translateY(-1px); }
-  .btn-vote .vote-icon { width: 16px; height: 16px; flex-shrink: 0; }
-  .btn-vote .vote-icon-down { transform: rotate(180deg); }
-  .btn-vote-helpful { background: #e8f5e9; border-color: #4caf50; color: #2e7d32; }
-  .btn-vote-helpful:hover:not([disabled]) { background: #c8e6c9; }
-  .btn-vote-helpful.voted { background: #4caf50; border-color: #388e3c; color: white; cursor: default; }
-  .btn-vote-not-helpful { background: #ffebee; border-color: #f44336; color: #c62828; }
-  .btn-vote-not-helpful:hover:not([disabled]) { background: #ffcdd2; }
-  .btn-vote-not-helpful.voted { background: #f44336; border-color: #d32f2f; color: white; cursor: default; }
-  .btn-vote:disabled { opacity: 0.6; cursor: default; transform: none; }
+  .product-qa-form .btn-vote { padding: 8px 16px; min-width: 120px; text-align: center; border: 1px solid var(--p-border, #d0d0d0); background: var(--p-surface, #f6f6f7); border-radius: 4px; cursor: pointer; font-size: 14px; transition: all 0.2s ease; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+  .product-qa-form .btn-vote:hover:not([disabled]) { background: var(--p-surface-subdued, #e4e5e7); transform: translateY(-1px); }
+  .product-qa-form .btn-vote .vote-icon { width: 16px; height: 16px; flex-shrink: 0; }
+  .product-qa-form .btn-vote .vote-icon-down { transform: rotate(180deg); }
+  .product-qa-form .btn-vote-helpful { background: #e8f5e9; border-color: #4caf50; color: #2e7d32; }
+  .product-qa-form .btn-vote-helpful:hover:not([disabled]) { background: #c8e6c9; }
+  .product-qa-form .btn-vote-helpful.voted { background: #4caf50; border-color: #388e3c; color: white; cursor: default; }
+  .product-qa-form .btn-vote-not-helpful { background: #ffebee; border-color: #f44336; color: #c62828; }
+  .product-qa-form .btn-vote-not-helpful:hover:not([disabled]) { background: #ffcdd2; }
+  .product-qa-form .btn-vote-not-helpful.voted { background: #f44336; border-color: #d32f2f; color: white; cursor: default; }
+  .product-qa-form .btn-vote:disabled { opacity: 0.6; cursor: default; transform: none; }
   .qa-ai-options { margin-top: 15px; border-top: 1px solid #e1e1e1; padding-top: 15px; text-align: center; }
   .qa-ai-options p { margin: 0 0 10px; font-size: 14px; }
   .qa-modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
@@ -156,7 +157,7 @@
   .close-modal { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
 </style>
 
-<script data-qa-form-version="v14-20250125">
+<script data-qa-form-version="v15-20251028">
 document.addEventListener('DOMContentLoaded', function() {
     const productId = document.querySelector('.product-qa-wrapper')?.dataset.productId;
     const shopDomain = '{{ shop.domain }}';
