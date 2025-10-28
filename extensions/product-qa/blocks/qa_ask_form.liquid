@@ -1,5 +1,5 @@
 {% comment %}
-  Q&A Ask Question Form Block v19
+  Q&A Ask Question Form Block v20
   - Handles both an inline form and a shared modal form.
   - Implements AI-first workflow for customer questions.
   - Two-button AI voting system (Helpful/Not Helpful)
@@ -8,9 +8,9 @@
   - Fixed vote button text initialization and translation loading
   - Added debug logging to diagnose translation issues
   - Added unique data attributes to force cache refresh
-  Cache: v19-2025-10-28
+  Cache: v20-2025-10-28
 {% endcomment %}
-<!-- QA Form v19 - Force cache with HTML changes - 2025-10-28 -->
+<!-- QA Form v20 - Add default text to spans - 2025-10-28 -->
 
 <div class="product-qa-wrapper" data-product-id="{{ product.id }}">
   <!-- Always Visible INLINE Form -->
@@ -20,14 +20,14 @@
       <div id="qa-ai-response-container" style="display: none;">
         <p><strong id="qa-suggested-answer-label">Suggested Answer:</strong></p>
         <div id="qa-ai-answer"></div>
-        <div class="qa-vote-container" data-version="20251028-v19">
+        <div class="qa-vote-container" data-version="20251028-v20">
           <button type="button" class="btn-vote btn-vote-helpful" data-vote="1" data-button-type="helpful">
             <svg class="vote-icon" width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6z"></path></svg>
-            <span class="vote-label"></span>
+            <span class="vote-label">Helpful</span>
           </button>
           <button type="button" class="btn-vote btn-vote-not-helpful" data-vote="-1" data-button-type="not-helpful">
             <svg class="vote-icon vote-icon-down" width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667V3a1 1 0 00-1-1H6.242a1 1 0 00-.97 1.222l1.036 4.143a1 1 0 00.97 1.222h3.136V12.5a1 1 0 002 0V9.667h1.586z"></path></svg>
-            <span class="vote-label"></span>
+            <span class="vote-label">Not Helpful</span>
           </button>
         </div>
         <div class="qa-ai-options">
@@ -74,14 +74,14 @@
         <div id="qa-ai-response-container-modal" style="display: none;">
           <p><strong id="qa-suggested-answer-label-modal">Suggested Answer:</strong></p>
           <div id="qa-ai-answer-modal"></div>
-          <div class="qa-vote-container-modal" data-version="20251028-v19">
+          <div class="qa-vote-container-modal" data-version="20251028-v20">
             <button type="button" class="btn-vote btn-vote-helpful" data-vote="1" data-button-type="helpful">
               <svg class="vote-icon" width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6z"></path></svg>
-              <span class="vote-label"></span>
+              <span class="vote-label">Helpful</span>
             </button>
             <button type="button" class="btn-vote btn-vote-not-helpful" data-vote="-1" data-button-type="not-helpful">
               <svg class="vote-icon vote-icon-down" width="16" height="16" viewBox="0 0 20 20" fill="currentColor"><path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667V3a1 1 0 00-1-1H6.242a1 1 0 00-.97 1.222l1.036 4.143a1 1 0 00.97 1.222h3.136V12.5a1 1 0 002 0V9.667h1.586z"></path></svg>
-              <span class="vote-label"></span>
+              <span class="vote-label">Not Helpful</span>
             </button>
           </div>
           <div class="qa-ai-options">
@@ -160,7 +160,7 @@
   .close-modal { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
 </style>
 
-<script data-qa-form-version="v19-20251028-final">
+<script data-qa-form-version="v20-20251028-with-defaults">
 document.addEventListener('DOMContentLoaded', function() {
     const productId = document.querySelector('.product-qa-wrapper')?.dataset.productId;
     const shopDomain = '{{ shop.domain }}';
