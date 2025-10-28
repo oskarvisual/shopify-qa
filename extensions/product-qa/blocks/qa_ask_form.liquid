@@ -1,5 +1,5 @@
 {% comment %}
-  Q&A Ask Question Form Block v17
+  Q&A Ask Question Form Block v18
   - Handles both an inline form and a shared modal form.
   - Implements AI-first workflow for customer questions.
   - Two-button AI voting system (Helpful/Not Helpful)
@@ -7,9 +7,10 @@
   - Fixed CSS specificity conflict with display block
   - Fixed vote button text initialization and translation loading
   - Added debug logging to diagnose translation issues
-  Cache: v17-2025-10-28
+  - Force cache refresh by renaming extension to v3
+  Cache: v18-2025-10-28
 {% endcomment %}
-<!-- QA Form v17 - Debug translation loading - 2025-10-28 -->
+<!-- QA Form v18 - Force Shopify cache refresh - 2025-10-28 -->
 
 <div class="product-qa-wrapper" data-product-id="{{ product.id }}">
   <!-- Always Visible INLINE Form -->
@@ -159,7 +160,7 @@
   .close-modal { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
 </style>
 
-<script data-qa-form-version="v17-20251028-debug">
+<script data-qa-form-version="v18-20251028-cachebust">
 document.addEventListener('DOMContentLoaded', function() {
     const productId = document.querySelector('.product-qa-wrapper')?.dataset.productId;
     const shopDomain = '{{ shop.domain }}';
