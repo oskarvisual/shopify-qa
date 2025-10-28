@@ -1,14 +1,15 @@
 {% comment %}
-  Q&A Ask Question Form Block v16
+  Q&A Ask Question Form Block v17
   - Handles both an inline form and a shared modal form.
   - Implements AI-first workflow for customer questions.
   - Two-button AI voting system (Helpful/Not Helpful)
   - AI vote buttons with SVG icons and proper translations
   - Fixed CSS specificity conflict with display block
   - Fixed vote button text initialization and translation loading
-  Cache: v16-2025-10-28
+  - Added debug logging to diagnose translation issues
+  Cache: v17-2025-10-28
 {% endcomment %}
-<!-- QA Form v16 - Fix vote button translation loading - 2025-10-28 -->
+<!-- QA Form v17 - Debug translation loading - 2025-10-28 -->
 
 <div class="product-qa-wrapper" data-product-id="{{ product.id }}">
   <!-- Always Visible INLINE Form -->
@@ -158,7 +159,7 @@
   .close-modal { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
 </style>
 
-<script data-qa-form-version="v16-20251028">
+<script data-qa-form-version="v17-20251028-debug">
 document.addEventListener('DOMContentLoaded', function() {
     const productId = document.querySelector('.product-qa-wrapper')?.dataset.productId;
     const shopDomain = '{{ shop.domain }}';
@@ -270,12 +271,19 @@ document.addEventListener('DOMContentLoaded', function() {
       function resetVoteButtons() {
         if (!elements.voteContainer) return;
         const buttons = elements.voteContainer.querySelectorAll('.btn-vote');
-        buttons.forEach(button => {
+        console.log('[QA Form] resetVoteButtons() called, found', buttons.length, 'buttons');
+        buttons.forEach((button, index) => {
           button.disabled = false;
           button.classList.remove('voted');
           const isHelpful = button.classList.contains('btn-vote-helpful');
           const defaultLabel = button.dataset.defaultText || (isHelpful ? texts.aiHelpfulButton : texts.aiNotHelpfulButton);
           const labelSpan = button.querySelector('.vote-label');
+          console.log(`[QA Form] Button ${index}:`, {
+            isHelpful,
+            datasetDefaultText: button.dataset.defaultText,
+            textsValue: isHelpful ? texts.aiHelpfulButton : texts.aiNotHelpfulButton,
+            finalLabel: defaultLabel
+          });
           if (labelSpan) {
             labelSpan.textContent = defaultLabel;
           }
@@ -463,6 +471,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if (elements.voteContainer) {
           const helpfulButton = elements.voteContainer.querySelector('.btn-vote-helpful');
           const notHelpfulButton = elements.voteContainer.querySelector('.btn-vote-not-helpful');
+
+          console.log('[QA Form] Applying translations to vote buttons:', {
+            helpful: texts.aiHelpfulButton,
+            notHelpful: texts.aiNotHelpfulButton,
+            helpfulButtonFound: !!helpfulButton,
+            notHelpfulButtonFound: !!notHelpfulButton
+          });
+
           if (helpfulButton) {
             helpfulButton.dataset.defaultText = texts.aiHelpfulButton;
             const labelSpan = helpfulButton.querySelector('.vote-label');
@@ -492,7 +508,10 @@ document.addEventListener('DOMContentLoaded', function() {
       fetch(`/apps/a/api/public/translations?shop=${encodeURIComponent(shopDomain)}`).then(res => res.ok ? res.json() : { translations: {} })
     ]).then(([aiSettings, translationData]) => {
       const translations = translationData.translations || {};
-      
+
+      console.log('[QA Form] Loaded translations:', translations);
+      console.log('[QA Form] AI Settings:', aiSettings);
+
       if (inlineForm) {
         inlineForm.applyTranslations(translations);
         inlineForm.setInitialState(aiSettings.aiEnabled);
