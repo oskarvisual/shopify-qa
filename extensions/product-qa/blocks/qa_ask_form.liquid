@@ -1,13 +1,13 @@
 {% comment %}
-  Q&A Ask Question Form Block v21
+  Q&A Ask Question Form Block v22
   - Handles both an inline form and a shared modal form.
   - Implements AI-first workflow for customer questions.
   - Two-button AI voting system (Helpful/Not Helpful)
+  - Fixed thumbs down icon for "Not Helpful" button
   - Vote button text now from block.settings (no JS needed)
-  - Removed dependency on translations API for vote buttons
-  Cache: v21-2025-10-28
+  Cache: v22-2025-11-04
 {% endcomment %}
-<!-- QA Form v21 - Use Liquid settings for vote buttons - 2025-10-28 -->
+<!-- QA Form v22 - Fixed thumbs down icon - 2025-11-04 -->
 
 <div class="product-qa-wrapper" data-product-id="{{ product.id }}">
   <!-- Always Visible INLINE Form -->
@@ -26,7 +26,7 @@
           </button>
           <button type="button" class="btn-vote btn-vote-not-helpful" data-vote="-1" data-button-type="not-helpful">
             <svg class="vote-icon vote-icon-down" width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667V3a1 1 0 00-1-1H6.242a1 1 0 00-.97 1.222l1.036 4.143a1 1 0 00.97 1.222h3.136V12.5a1 1 0 002 0V9.667h1.586z"></path>
+              <path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667V3a1 1 0 00-1-1H6.242a1 1 0 00-.97 1.222l1.036 4.143a1 1 0 00.97 1.222h3.136V12.5a1 1 0 002 0V9.667H14z"></path>
             </svg>
             <span class="vote-label">{{ block.settings.ai_not_helpful_button_text | default: 'Not Helpful' }}</span>
           </button>
@@ -84,7 +84,7 @@
             </button>
             <button type="button" class="btn-vote btn-vote-not-helpful" data-vote="-1" data-button-type="not-helpful">
               <svg class="vote-icon vote-icon-down" width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667V3a1 1 0 00-1-1H6.242a1 1 0 00-.97 1.222l1.036 4.143a1 1 0 00.97 1.222h3.136V12.5a1 1 0 002 0V9.667h1.586z"></path>
+                <path d="M18 9.5a1.5 1.5 0 11-3 0v-6a1.5 1.5 0 013 0v6zM14 9.667V3a1 1 0 00-1-1H6.242a1 1 0 00-.97 1.222l1.036 4.143a1 1 0 00.97 1.222h3.136V12.5a1 1 0 002 0V9.667H14z"></path>
               </svg>
               <span class="vote-label">{{ block.settings.ai_not_helpful_button_text | default: 'Not Helpful' }}</span>
             </button>
@@ -165,7 +165,7 @@
   .close-modal { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
 </style>
 
-<script data-qa-form-version="v21-20251028-liquid-settings">
+<script data-qa-form-version="v22-20251104-fix-thumbs-down">
 document.addEventListener('DOMContentLoaded', function() {
     const productId = document.querySelector('.product-qa-wrapper')?.dataset.productId;
     const shopDomain = '{{ shop.domain }}';
