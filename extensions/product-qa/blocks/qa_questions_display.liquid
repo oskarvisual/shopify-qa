@@ -1,11 +1,12 @@
 {% comment %}
-  Q&A Questions Display Block v20
+  Q&A Questions Display Block v21
   Shows existing questions and answers for a product
   Display block now works completely independently
   Added fallback modal with full form functionality
-  Updated: Cache refresh v20-2025-11-04
+  Fixed modal opening to work with or without form section
+  Updated: Cache refresh v21-2025-11-06
 {% endcomment %}
-<!-- QA Display v20 - Independent display block with fallback modal - 2025-11-04 -->
+<!-- QA Display v21 - Independent display block with fallback modal - 2025-11-06 -->
 
 <div class="product-qa-display qa-translations-hidden" data-product-id="{{ product.id }}">
 
@@ -460,7 +461,7 @@
   }
 </style>
 
-<script data-qa-display-version="v20-20251104-independent-display">
+<script data-qa-display-version="v21-20251106-modal-fix">
   document.addEventListener('DOMContentLoaded', async function() {
     const productId = document.querySelector('[data-product-id]')?.dataset.productId;
     const qaList = document.getElementById('qa-list');
@@ -675,6 +676,7 @@
     };
 
     // Define openQAModal globally to work with both main modal and fallback
+    // This will only run if the function hasn't been defined by the form block
     if (!window.openQAModal) {
       window.openQAModal = function() {
         const mainModal = document.getElementById('qa-shared-modal');
@@ -689,6 +691,16 @@
         } else {
           console.warn('Q&A modal not found. Make sure the Q&A Ask Question Form block is added to your theme.');
         }
+      };
+    }
+
+    // Define closeQAModal if it doesn't exist
+    if (!window.closeQAModal) {
+      window.closeQAModal = function() {
+        const mainModal = document.getElementById('qa-shared-modal');
+        const fallbackModal = document.getElementById('qa-fallback-modal');
+        if (mainModal) mainModal.style.display = 'none';
+        if (fallbackModal) fallbackModal.style.display = 'none';
       };
     }
 

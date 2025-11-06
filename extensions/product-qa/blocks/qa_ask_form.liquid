@@ -1,13 +1,14 @@
 {% comment %}
-  Q&A Ask Question Form Block v23
+  Q&A Ask Question Form Block v24
   - Handles both an inline form and a shared modal form.
   - Implements AI-first workflow for customer questions.
   - Two-button AI voting system (Helpful/Not Helpful)
   - Simplified thumbs down icon using CSS rotation
   - Vote button text now from block.settings (no JS needed)
-  Cache: v23-2025-11-04
+  - Fixed modal opening to work with fallback modal
+  Cache: v24-2025-11-06
 {% endcomment %}
-<!-- QA Form v23 - Simplified thumbs down with CSS rotation - 2025-11-04 -->
+<!-- QA Form v24 - Fixed modal opening with fallback support - 2025-11-06 -->
 
 <div class="product-qa-wrapper" data-product-id="{{ product.id }}">
   <!-- Always Visible INLINE Form -->
@@ -165,7 +166,7 @@
   .close-modal { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
 </style>
 
-<script data-qa-form-version="v23-20251104-css-rotation">
+<script data-qa-form-version="v24-20251106-modal-fix">
 document.addEventListener('DOMContentLoaded', function() {
     const productId = document.querySelector('.product-qa-wrapper')?.dataset.productId;
     const shopDomain = '{{ shop.domain }}';
@@ -187,8 +188,28 @@ document.addEventListener('DOMContentLoaded', function() {
         aiNotHelpfulVoted: 'Voted!'
     };
 
-    window.openQAModal = function() { if (sharedModal) sharedModal.style.display = 'block'; };
-    window.closeQAModal = function() { if (sharedModal) sharedModal.style.display = 'none'; };
+    // Only define openQAModal if it doesn't exist yet
+    if (!window.openQAModal) {
+      window.openQAModal = function() {
+        const mainModal = document.getElementById('qa-shared-modal');
+        const fallbackModal = document.getElementById('qa-fallback-modal');
+
+        if (mainModal) {
+          mainModal.style.display = 'block';
+        } else if (fallbackModal) {
+          fallbackModal.style.display = 'block';
+        } else {
+          console.warn('Q&A modal not found.');
+        }
+      };
+    }
+
+    window.closeQAModal = function() {
+      const mainModal = document.getElementById('qa-shared-modal');
+      const fallbackModal = document.getElementById('qa-fallback-modal');
+      if (mainModal) mainModal.style.display = 'none';
+      if (fallbackModal) fallbackModal.style.display = 'none';
+    };
     if (sharedModal) {
       sharedModal.querySelector('.close-modal')?.addEventListener('click', window.closeQAModal);
       sharedModal.addEventListener('click', (e) => { if (e.target === sharedModal) window.closeQAModal(); });
