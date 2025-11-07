@@ -168,9 +168,20 @@
 
 <script data-qa-form-version="v24-20251106-modal-fix">
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('[QA Form] Script loading, version v24-20251106');
+
     const productId = document.querySelector('.product-qa-wrapper')?.dataset.productId;
     const shopDomain = '{{ shop.domain }}';
-    if (!productId) return;
+
+    console.log('[QA Form] Elements check:', {
+      productId,
+      sharedModal: !!document.getElementById('qa-shared-modal')
+    });
+
+    if (!productId) {
+      console.warn('[QA Form] No product ID found, form block may not be on this page');
+      return;
+    }
 
     const sharedModal = document.getElementById('qa-shared-modal');
     let texts = {
@@ -194,14 +205,20 @@ document.addEventListener('DOMContentLoaded', function() {
         const mainModal = document.getElementById('qa-shared-modal');
         const fallbackModal = document.getElementById('qa-fallback-modal');
 
+        console.log('[QA Form] openQAModal called:', { mainModal: !!mainModal, fallbackModal: !!fallbackModal });
+
         if (mainModal) {
+          console.log('[QA Form] Opening main modal');
           mainModal.style.display = 'block';
         } else if (fallbackModal) {
+          console.log('[QA Form] Opening fallback modal');
           fallbackModal.style.display = 'block';
         } else {
-          console.warn('Q&A modal not found.');
+          console.error('[QA Form] No modal found! Check if both blocks are loaded correctly.');
         }
       };
+    } else {
+      console.log('[QA Form] openQAModal already defined, skipping definition');
     }
 
     window.closeQAModal = function() {

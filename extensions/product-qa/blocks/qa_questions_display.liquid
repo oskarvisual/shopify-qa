@@ -463,6 +463,8 @@
 
 <script data-qa-display-version="v21-20251106-modal-fix">
   document.addEventListener('DOMContentLoaded', async function() {
+    console.log('[QA Display] Script loading, version v21-20251106');
+
     const productId = document.querySelector('[data-product-id]')?.dataset.productId;
     const qaList = document.getElementById('qa-list');
     const searchInput = document.getElementById('qa-search');
@@ -472,8 +474,14 @@
     const container = document.querySelector('.product-qa-display');
     let searchPlaceholder = (searchInput?.getAttribute('placeholder') || 'Search questions...');
 
+    console.log('[QA Display] Elements check:', {
+      productId,
+      qaList: !!qaList,
+      fallbackModal: !!document.getElementById('qa-fallback-modal')
+    });
+
     if (!productId || !qaList) {
-      console.error('Required elements not found for Q&A display');
+      console.error('[QA Display] Required elements not found for Q&A display');
       if (container) container.classList.remove('qa-translations-hidden');
       return;
     }
@@ -682,14 +690,22 @@
         const mainModal = document.getElementById('qa-shared-modal');
         const fallbackModal = document.getElementById('qa-fallback-modal');
 
+        console.log('[QA Display] openQAModal called:', { mainModal: !!mainModal, fallbackModal: !!fallbackModal });
+
         if (mainModal) {
           // Use the main modal from the form block if it exists
+          console.log('[QA Display] Opening main modal');
           mainModal.style.display = 'block';
         } else if (fallbackModal) {
           // Use the fallback modal from the display block
+          console.log('[QA Display] Opening fallback modal');
           fallbackModal.style.display = 'block';
         } else {
-          console.warn('Q&A modal not found. Make sure the Q&A Ask Question Form block is added to your theme.');
+          console.error('[QA Display] No modal found! This should not happen if the display block is loaded.');
+          console.error('[QA Display] DOM elements:', {
+            allModals: document.querySelectorAll('.qa-modal').length,
+            allWithId: document.querySelectorAll('[id*="modal"]').length
+          });
         }
       };
     }
