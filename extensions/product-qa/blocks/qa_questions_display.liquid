@@ -1,13 +1,11 @@
 {% comment %}
-  Q&A Questions Display Block v22
-  Shows existing questions and answers for a product
-  Display block now works completely independently
-  Added fallback modal with full form functionality
-  Fixed modal opening to work with or without form section
-  Simplified modal detection logic
-  Updated: Cache refresh v22-2025-11-10
+  Q&A Questions Display Block v23
+  - Removed fallback modal and all associated logic/styles.
+  - Renders the shared `qa_form_component` to provide modal functionality.
+  - The component has its own guard to prevent duplicate rendering.
+  Updated: Cache refresh v23-2025-11-10
 {% endcomment %}
-<!-- QA Display v22 - Independent display block with fallback modal - 2025-11-10 -->
+<!-- QA Display v23 - Renders shared form component - 2025-11-10 -->
 
 <div class="product-qa-display qa-translations-hidden" data-product-id="{{ product.id }}">
 
@@ -46,34 +44,13 @@
 
 </div>
 
-<!-- Fallback Modal (when form block is not present) -->
-<div id="qa-fallback-modal" class="qa-modal" style="display: none;">
-  <div class="qa-modal-content">
-    <span class="close-fallback-modal">&times;</span>
-    <div class="product-qa-form-fallback">
-      <h3>{{ block.settings.ask_modal_title | default: "Ask a Question" }}</h3>
-      <form id="qa-form-fallback" class="qa-form" onsubmit="return false;">
-        <div class="form-group">
-          <label for="question-fallback">{{ block.settings.modal_question_label | default: 'Your Question' }}</label>
-          <textarea id="question-fallback" name="question" rows="4" required maxlength="500"></textarea>
-          <div class="char-counter-fallback">0 / 500</div>
-        </div>
-        <div class="form-group">
-          <label for="customer-name-fallback">{{ block.settings.modal_name_label | default: 'Your Name' }}</label>
-          <input type="text" id="customer-name-fallback" name="customerName" value="{{ customer.name }}" {% if block.settings.modal_name_required %}required{% endif %}>
-        </div>
-        <div class="form-group">
-          <label for="customer-email-fallback">{{ block.settings.modal_email_label | default: 'Your Email' }}</label>
-          <input type="email" id="customer-email-fallback" name="customerEmail" value="{{ customer.email }}" {% if block.settings.modal_email_required %}required{% endif %}>
-        </div>
-        <input type="hidden" name="shop" value="{{ shop.domain }}">
-        <input type="hidden" name="productId" value="{{ product.id }}">
-        <button type="submit" id="qa-submit-btn-fallback" class="btn btn-primary btn-full-width">{{ block.settings.modal_submit_text | default: 'Submit Question' }}</button>
-      </form>
-      <div id="form-message-fallback" class="form-message" style="display: none;"></div>
-    </div>
-  </div>
-</div>
+<!-- Render the shared form component which includes the modal.
+     The component has a built-in guard to prevent it from rendering more than once.
+     If the `qa_ask_form` block is on the page, it will render this component first,
+     and this call will do nothing. If only this `qa_questions_display` block is
+     on the page, this will render the component, making the modal available. -->
+{% render 'qa_form_component' %}
+
 
 <style>
   .product-qa-display {
@@ -335,131 +312,6 @@
     opacity: 0.6;
     text-decoration: underline;
   }
-
-  /* Fallback Modal Styles */
-  .qa-modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.5);
-  }
-
-  .qa-modal-content {
-    background-color: #fefefe;
-    margin: 10% auto;
-    padding: 20px;
-    border: 1px solid #888;
-    width: 80%;
-    max-width: 600px;
-    border-radius: 8px;
-  }
-
-  .close-fallback-modal {
-    color: #aaa;
-    float: right;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
-  }
-
-  .close-fallback-modal:hover,
-  .close-fallback-modal:focus {
-    color: #000;
-    text-decoration: none;
-    cursor: pointer;
-  }
-
-  .product-qa-form-fallback {
-    padding: 20px;
-    background: #fff;
-    border-radius: 8px;
-  }
-
-  .product-qa-form-fallback h3 {
-    margin-top: 0;
-    margin-bottom: 20px;
-    font-size: 22px;
-  }
-
-  .form-group {
-    margin-bottom: 20px;
-  }
-
-  .form-group label {
-    display: block;
-    margin-bottom: 8px;
-    font-weight: 600;
-  }
-
-  .form-group input,
-  .form-group textarea {
-    width: 100%;
-    padding: 12px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    font-size: 16px;
-    box-sizing: border-box;
-  }
-
-  .form-group textarea {
-    resize: vertical;
-    min-height: 100px;
-  }
-
-  .char-counter-fallback {
-    text-align: right;
-    font-size: 12px;
-    color: #6B7280;
-    margin-top: 4px;
-  }
-
-  .btn {
-    padding: 12px 24px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 16px;
-    font-weight: 600;
-    transition: all 0.3s ease;
-  }
-
-  .btn-primary {
-    background: {{ block.settings.ask_button_bg_color | default: '#007cba' }};
-    color: #fff;
-  }
-
-  .btn-primary:hover {
-    background: {{ block.settings.ask_button_bg_color | default: '#007cba' | color_darken: 10 }};
-  }
-
-  .btn-full-width {
-    width: 100%;
-  }
-
-  .form-message {
-    margin-top: 20px;
-    padding: 15px;
-    border-radius: 6px;
-  }
-
-  .form-message.success {
-    background: #d4edda;
-    color: #155724;
-  }
-
-  .form-message.error {
-    background: #f8d7da;
-    color: #721c24;
-  }
-
-  .btn[disabled] {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
 </style>
 
 <script data-qa-display-version="v22-20251110-modal-fix">
@@ -467,53 +319,13 @@
   // This ensures the function exists even if the script hasn't fully loaded
   if (!window.openQAModal) {
     window.openQAModal = function() {
-      // Try to find modals - this will work even if DOM isn't fully loaded
-      const mainModal = document.getElementById('qa-shared-modal');
-      const fallbackModal = document.getElementById('qa-fallback-modal');
-
-      if (mainModal) {
-        console.log('[QA Display] Opening main modal (qa-shared-modal)');
-        mainModal.style.display = 'block';
-        return;
-      }
-
-      if (fallbackModal) {
-        console.log('[QA Display] Opening fallback modal (qa-fallback-modal)');
-        fallbackModal.style.display = 'block';
-        return;
-      }
-
-      // If neither modal exists, log a warning but don't throw an error
-      console.warn('[QA Display] No modal found. Waiting for DOM to load...');
-
-      // Try again after a short delay in case DOM is still loading
-      setTimeout(function() {
-        const retryMainModal = document.getElementById('qa-shared-modal');
-        const retryFallbackModal = document.getElementById('qa-fallback-modal');
-
-        if (retryMainModal) {
-          retryMainModal.style.display = 'block';
-        } else if (retryFallbackModal) {
-          retryFallbackModal.style.display = 'block';
-        } else {
-          console.error('[QA Display] No modal found after retry. Make sure the Q&A blocks are properly loaded.');
-        }
-      }, 100);
-    };
-  }
-
-  // Define closeQAModal immediately as well
-  if (!window.closeQAModal) {
-    window.closeQAModal = function() {
-      const mainModal = document.getElementById('qa-shared-modal');
-      const fallbackModal = document.getElementById('qa-fallback-modal');
-      if (mainModal) mainModal.style.display = 'none';
-      if (fallbackModal) fallbackModal.style.display = 'none';
+      // This will now be defined by the rendered qa_form_component
+      console.warn('[QA Display] openQAModal called before component script loaded. This should be handled by the component.');
     };
   }
 
   document.addEventListener('DOMContentLoaded', async function() {
-    console.log('[QA Display] Script loading, version v22-20251110');
+    console.log('[QA Display] Script loading, version v23-20251110');
 
     const productId = document.querySelector('[data-product-id]')?.dataset.productId;
     const qaList = document.getElementById('qa-list');
@@ -523,13 +335,6 @@
     const shopDomain = '{{ shop.domain }}';
     const container = document.querySelector('.product-qa-display');
     let searchPlaceholder = (searchInput?.getAttribute('placeholder') || 'Search questions...');
-
-    console.log('[QA Display] Elements check:', {
-      productId,
-      qaList: !!qaList,
-      fallbackModal: !!document.getElementById('qa-fallback-modal'),
-      mainModal: !!document.getElementById('qa-shared-modal')
-    });
 
     if (!productId || !qaList) {
       console.error('[QA Display] Required elements not found for Q&A display');
@@ -723,48 +528,6 @@
     updateSearchPlaceholder();
     if (container) container.classList.remove('qa-translations-hidden');
 
-    // Set global modal settings for shared modal
-    window.qaModalSettings = {
-      title: '{{ block.settings.ask_modal_title | default: "Ask a Question" }}',
-      nameLabel: '{{ block.settings.modal_name_label | default: "Your Name" }}',
-      nameRequired: {{ block.settings.modal_name_required | default: true }},
-      emailLabel: '{{ block.settings.modal_email_label | default: "Your Email" }}',
-      emailRequired: {{ block.settings.modal_email_required | default: true }},
-      questionLabel: '{{ block.settings.modal_question_label | default: "Your Question" }}',
-      submitText: '{{ block.settings.modal_submit_text | default: "Submit Question" }}'
-    };
-
-    // Update openQAModal to ensure it works correctly now that DOM is loaded
-    // Only update if it's our version (not the form block's version)
-    // The form block's version takes priority, but we ensure ours works as fallback
-    if (window.openQAModal && !document.getElementById('qa-shared-modal')) {
-      // If form block modal doesn't exist, ensure our version works correctly
-      window.openQAModal = function() {
-        const mainModal = document.getElementById('qa-shared-modal');
-        const fallbackModal = document.getElementById('qa-fallback-modal');
-
-        if (mainModal) {
-          console.log('[QA Display] Opening main modal (qa-shared-modal)');
-          mainModal.style.display = 'block';
-        } else if (fallbackModal) {
-          console.log('[QA Display] Opening fallback modal (qa-fallback-modal)');
-          fallbackModal.style.display = 'block';
-        } else {
-          console.error('[QA Display] No modal found! Make sure the Q&A blocks are properly loaded.');
-        }
-      };
-    }
-
-    // Ensure closeQAModal is defined
-    if (!window.closeQAModal) {
-      window.closeQAModal = function() {
-        const mainModal = document.getElementById('qa-shared-modal');
-        const fallbackModal = document.getElementById('qa-fallback-modal');
-        if (mainModal) mainModal.style.display = 'none';
-        if (fallbackModal) fallbackModal.style.display = 'none';
-      };
-    }
-
     // Add event listener to the ask button as a backup (in addition to onclick)
     const openAskModalBtn = document.getElementById('open-ask-modal-btn');
     if (openAskModalBtn) {
@@ -777,125 +540,6 @@
         }
       });
     }
-
-    // Setup fallback modal functionality
-    const fallbackModal = document.getElementById('qa-fallback-modal');
-    if (fallbackModal) {
-      const closeFallbackBtn = fallbackModal.querySelector('.close-fallback-modal');
-      const fallbackForm = document.getElementById('qa-form-fallback');
-      const fallbackSubmitBtn = document.getElementById('qa-submit-btn-fallback');
-      const fallbackMessage = document.getElementById('form-message-fallback');
-      const fallbackTextarea = document.getElementById('question-fallback');
-      const fallbackCharCounter = fallbackModal.querySelector('.char-counter-fallback');
-
-      // Close modal handlers
-      if (closeFallbackBtn) {
-        closeFallbackBtn.addEventListener('click', () => {
-          fallbackModal.style.display = 'none';
-        });
-      }
-
-      fallbackModal.addEventListener('click', (e) => {
-        if (e.target === fallbackModal) {
-          fallbackModal.style.display = 'none';
-        }
-      });
-
-      // Char counter
-      if (fallbackTextarea && fallbackCharCounter) {
-        fallbackTextarea.addEventListener('input', () => {
-          fallbackCharCounter.textContent = `${fallbackTextarea.value.length} / 500`;
-        });
-      }
-
-      // Form submission
-      if (fallbackForm && fallbackSubmitBtn) {
-        fallbackSubmitBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-
-          const question = fallbackTextarea?.value.trim();
-          const customerName = document.getElementById('customer-name-fallback')?.value.trim();
-          const customerEmail = document.getElementById('customer-email-fallback')?.value.trim();
-
-          if (!question) {
-            showFallbackMessage('Please enter a question.', 'error');
-            return;
-          }
-
-          if (!customerName) {
-            showFallbackMessage('Please enter your name.', 'error');
-            return;
-          }
-
-          if (!customerEmail) {
-            showFallbackMessage('Please enter your email.', 'error');
-            return;
-          }
-
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-          if (!emailRegex.test(customerEmail)) {
-            showFallbackMessage('Please enter a valid email address.', 'error');
-            return;
-          }
-
-          fallbackSubmitBtn.disabled = true;
-          fallbackSubmitBtn.textContent = 'Submitting...';
-
-          const formData = new FormData(fallbackForm);
-
-          fetch('/apps/a/api/public/questions', { method: 'POST', body: formData })
-            .then(res => res.json())
-            .then(data => {
-              if (data.question || data.success) {
-                showFallbackMessage('Thank you! Your question has been submitted.', 'success');
-                fallbackForm.reset();
-                if (fallbackCharCounter) fallbackCharCounter.textContent = '0 / 500';
-                if (window.reloadQuestions) setTimeout(() => window.reloadQuestions(), 1000);
-                setTimeout(() => {
-                  fallbackModal.style.display = 'none';
-                  hideFallbackMessage();
-                }, 2000);
-              } else {
-                showFallbackMessage(data.error || 'There was an error submitting your question.', 'error');
-              }
-            })
-            .catch(err => {
-              console.error('Error submitting question:', err);
-              showFallbackMessage('There was an error submitting your question.', 'error');
-            })
-            .finally(() => {
-              fallbackSubmitBtn.disabled = false;
-              fallbackSubmitBtn.textContent = '{{ block.settings.modal_submit_text | default: "Submit Question" }}';
-            });
-        });
-      }
-
-      function showFallbackMessage(message, type) {
-        if (!fallbackMessage) return;
-        fallbackMessage.textContent = message;
-        fallbackMessage.className = `form-message ${type}`;
-        fallbackMessage.style.display = 'block';
-      }
-
-      function hideFallbackMessage() {
-        if (!fallbackMessage) return;
-        fallbackMessage.style.display = 'none';
-      }
-    }
-
-    // Close fallback modal on Escape key
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
-        const mainModal = document.getElementById('qa-shared-modal');
-        const fallbackModal = document.getElementById('qa-fallback-modal');
-        if ((mainModal && mainModal.style.display === 'block') ||
-            (fallbackModal && fallbackModal.style.display === 'block')) {
-          if (window.closeQAModal) {
-            window.closeQAModal();
-          }
-        }
-      }
-    });
 
     // Initialize
     loadQuestions();
