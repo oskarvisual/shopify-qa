@@ -463,6 +463,55 @@
 </style>
 
 <script data-qa-display-version="v22-20251110-modal-fix">
+  // Define openQAModal IMMEDIATELY (before DOMContentLoaded) so it's available when onclick fires
+  // This ensures the function exists even if the script hasn't fully loaded
+  if (!window.openQAModal) {
+    window.openQAModal = function() {
+      // Try to find modals - this will work even if DOM isn't fully loaded
+      const mainModal = document.getElementById('qa-shared-modal');
+      const fallbackModal = document.getElementById('qa-fallback-modal');
+
+      if (mainModal) {
+        console.log('[QA Display] Opening main modal (qa-shared-modal)');
+        mainModal.style.display = 'block';
+        return;
+      }
+
+      if (fallbackModal) {
+        console.log('[QA Display] Opening fallback modal (qa-fallback-modal)');
+        fallbackModal.style.display = 'block';
+        return;
+      }
+
+      // If neither modal exists, log a warning but don't throw an error
+      console.warn('[QA Display] No modal found. Waiting for DOM to load...');
+
+      // Try again after a short delay in case DOM is still loading
+      setTimeout(function() {
+        const retryMainModal = document.getElementById('qa-shared-modal');
+        const retryFallbackModal = document.getElementById('qa-fallback-modal');
+
+        if (retryMainModal) {
+          retryMainModal.style.display = 'block';
+        } else if (retryFallbackModal) {
+          retryFallbackModal.style.display = 'block';
+        } else {
+          console.error('[QA Display] No modal found after retry. Make sure the Q&A blocks are properly loaded.');
+        }
+      }, 100);
+    };
+  }
+
+  // Define closeQAModal immediately as well
+  if (!window.closeQAModal) {
+    window.closeQAModal = function() {
+      const mainModal = document.getElementById('qa-shared-modal');
+      const fallbackModal = document.getElementById('qa-fallback-modal');
+      if (mainModal) mainModal.style.display = 'none';
+      if (fallbackModal) fallbackModal.style.display = 'none';
+    };
+  }
+
   document.addEventListener('DOMContentLoaded', async function() {
     console.log('[QA Display] Script loading, version v22-20251110');
 
@@ -478,7 +527,8 @@
     console.log('[QA Display] Elements check:', {
       productId,
       qaList: !!qaList,
-      fallbackModal: !!document.getElementById('qa-fallback-modal')
+      fallbackModal: !!document.getElementById('qa-fallback-modal'),
+      mainModal: !!document.getElementById('qa-shared-modal')
     });
 
     if (!productId || !qaList) {
@@ -684,35 +734,28 @@
       submitText: '{{ block.settings.modal_submit_text | default: "Submit Question" }}'
     };
 
-    // Define openQAModal globally to work with both main modal and fallback
-    // This will only run if the function hasn't been defined by the form block
-    if (!window.openQAModal) {
+    // Update openQAModal to ensure it works correctly now that DOM is loaded
+    // Only update if it's our version (not the form block's version)
+    // The form block's version takes priority, but we ensure ours works as fallback
+    if (window.openQAModal && !document.getElementById('qa-shared-modal')) {
+      // If form block modal doesn't exist, ensure our version works correctly
       window.openQAModal = function() {
-        console.log('[QA Display] openQAModal called');
-
         const mainModal = document.getElementById('qa-shared-modal');
         const fallbackModal = document.getElementById('qa-fallback-modal');
 
-        console.log('[QA Display] Modal check:', {
-          mainModal: !!mainModal,
-          fallbackModal: !!fallbackModal
-        });
-
         if (mainModal) {
-          // Use the main modal from the form block if it exists
-          console.log('[QA Display] Opening main modal');
+          console.log('[QA Display] Opening main modal (qa-shared-modal)');
           mainModal.style.display = 'block';
         } else if (fallbackModal) {
-          // Use the fallback modal from the display block
-          console.log('[QA Display] Opening fallback modal');
+          console.log('[QA Display] Opening fallback modal (qa-fallback-modal)');
           fallbackModal.style.display = 'block';
         } else {
-          console.error('[QA Display] No modal found! This should not happen.');
+          console.error('[QA Display] No modal found! Make sure the Q&A blocks are properly loaded.');
         }
       };
     }
 
-    // Define closeQAModal if it doesn't exist
+    // Ensure closeQAModal is defined
     if (!window.closeQAModal) {
       window.closeQAModal = function() {
         const mainModal = document.getElementById('qa-shared-modal');
@@ -720,6 +763,19 @@
         if (mainModal) mainModal.style.display = 'none';
         if (fallbackModal) fallbackModal.style.display = 'none';
       };
+    }
+
+    // Add event listener to the ask button as a backup (in addition to onclick)
+    const openAskModalBtn = document.getElementById('open-ask-modal-btn');
+    if (openAskModalBtn) {
+      openAskModalBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        if (window.openQAModal) {
+          window.openQAModal();
+        } else {
+          console.error('[QA Display] openQAModal function not found');
+        }
+      });
     }
 
     // Setup fallback modal functionality
@@ -829,8 +885,15 @@
 
     // Close fallback modal on Escape key
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && fallbackModal && fallbackModal.style.display === 'block') {
-        fallbackModal.style.display = 'none';
+      if (e.key === 'Escape') {
+        const mainModal = document.getElementById('qa-shared-modal');
+        const fallbackModal = document.getElementById('qa-fallback-modal');
+        if ((mainModal && mainModal.style.display === 'block') ||
+            (fallbackModal && fallbackModal.style.display === 'block')) {
+          if (window.closeQAModal) {
+            window.closeQAModal();
+          }
+        }
       }
     });
 
