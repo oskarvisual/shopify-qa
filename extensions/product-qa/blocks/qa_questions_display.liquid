@@ -1,11 +1,11 @@
 {% comment %}
-  Q&A Questions Display Block v23
-  - Removed fallback modal and all associated logic/styles.
-  - Renders the shared `qa_form_component` to provide modal functionality.
-  - The component has its own guard to prevent duplicate rendering.
-  Updated: Cache refresh v23-2025-11-10
+  Q&A Questions Display Block v24
+  Shows existing questions and answers for a product
+  Display block now works completely independently
+  Renders the configurable `qa_ask_form` block to provide modal functionality.
+  Updated: Cache refresh v24-2025-11-23
 {% endcomment %}
-<!-- QA Display v23 - Renders shared form component - 2025-11-10 -->
+<!-- QA Display v24 - Renders shared form component - 2025-11-23 -->
 
 <div class="product-qa-display qa-translations-hidden" data-product-id="{{ product.id }}">
 
@@ -44,13 +44,10 @@
 
 </div>
 
-<!-- Render the shared form component which includes the modal.
-     The component has a built-in guard to prevent it from rendering more than once.
-     If the `qa_ask_form` block is on the page, it will render this component first,
-     and this call will do nothing. If only this `qa_questions_display` block is
-     on the page, this will render the component, making the modal available. -->
-{% render 'qa_form_component' %}
-
+<!-- NOTE: The qa_ask_form block should be added separately in the Theme Editor.
+     Blocks cannot be rendered using the render tag - that only works for snippets.
+     The modal functionality requires both blocks (qa_ask_form and qa_questions_display) to be active on the page.
+     The internal guard in qa_ask_form.liquid prevents duplicate rendering of scripts/styles. -->
 
 <style>
   .product-qa-display {
@@ -314,18 +311,23 @@
   }
 </style>
 
-<script data-qa-display-version="v22-20251110-modal-fix">
-  // Define openQAModal IMMEDIATELY (before DOMContentLoaded) so it's available when onclick fires
-  // This ensures the function exists even if the script hasn't fully loaded
+<script data-qa-display-version="v24-20251123">
+  // openQAModal is now defined by the rendered qa_ask_form block.
+  // This ensures the function exists globally when open-ask-modal-btn is clicked.
   if (!window.openQAModal) {
     window.openQAModal = function() {
-      // This will now be defined by the rendered qa_form_component
-      console.warn('[QA Display] openQAModal called before component script loaded. This should be handled by the component.');
+      console.warn('[QA Display] openQAModal called, but qa_ask_form block might not be fully loaded or rendered. Ensure the qa_ask_form block is active on the page.');
+      const mainModal = document.getElementById('qa-shared-modal');
+      if (mainModal) {
+          mainModal.style.display = 'block';
+      } else {
+          console.error('[QA Display] qa-shared-modal not found. The qa_ask_form block must be present and rendered.');
+      }
     };
   }
 
   document.addEventListener('DOMContentLoaded', async function() {
-    console.log('[QA Display] Script loading, version v23-20251110');
+    console.log('[QA Display] Script loading, version v24-20251123');
 
     const productId = document.querySelector('[data-product-id]')?.dataset.productId;
     const qaList = document.getElementById('qa-list');
