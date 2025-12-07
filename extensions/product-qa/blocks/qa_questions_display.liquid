@@ -1,11 +1,11 @@
 {% comment %}
-  Q&A Questions Display Block v24
+  Q&A Questions Display Block v26
   Shows existing questions and answers for a product
-  Display block now works completely independently
-  Renders the configurable `qa_ask_form` block to provide modal functionality.
-  Updated: Cache refresh v24-2025-11-23
+  Display block now works completely independently with full AI support
+  Fallback modal includes complete AI functionality (AI response, voting, translations)
+  Updated: Cache refresh v26-2025-12-07
 {% endcomment %}
-<!-- QA Display v24 - Renders shared form component - 2025-11-23 -->
+<!-- QA Display v26 - Full AI support in fallback modal - 2025-12-07 -->
 
 <div class="product-qa-display qa-translations-hidden" data-product-id="{{ product.id }}">
 
@@ -44,30 +44,61 @@
 
 </div>
 
-<!-- Fallback Modal: If qa_ask_form is not present, render a basic modal here -->
+<!-- Fallback Modal: If qa_ask_form is not present, render a modal with full AI support -->
 <div id="qa-fallback-modal" class="qa-modal" style="display: none;">
   <div class="qa-modal-content">
     <span class="close-modal-fallback">&times;</span>
     <div class="product-qa-form">
       <h3>{{ block.settings.ask_modal_title | default: "Ask a Question" }}</h3>
       <form id="qa-form-fallback" class="qa-form" onsubmit="return false;">
-        <div class="form-group">
-          <label for="question-fallback">{{ block.settings.modal_question_label | default: 'Your Question' }}</label>
-          <textarea id="question-fallback" name="question" rows="4" required maxlength="500"></textarea>
-          <div class="char-counter-fallback">0 / 500</div>
+        <!-- AI Response Container -->
+        <div id="qa-ai-response-container-fallback" style="display: none;">
+          <p><strong id="qa-suggested-answer-label-fallback">Suggested Answer:</strong></p>
+          <div id="qa-ai-answer-fallback"></div>
+          <div class="qa-vote-container-fallback" data-version="20251207-v25">
+            <button type="button" class="btn-vote btn-vote-helpful" data-vote="1" data-button-type="helpful">
+              <svg class="vote-icon" width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6z"></path>
+              </svg>
+              <span class="vote-label">{{ block.settings.ai_helpful_button_text | default: 'Helpful' }}</span>
+            </button>
+            <button type="button" class="btn-vote btn-vote-not-helpful" data-vote="-1" data-button-type="not-helpful">
+              <svg class="vote-icon vote-icon-down" width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6z"></path>
+              </svg>
+              <span class="vote-label">{{ block.settings.ai_not_helpful_button_text | default: 'Not Helpful' }}</span>
+            </button>
+          </div>
+          <div class="qa-ai-options">
+            <p id="qa-human-prompt-fallback"></p>
+            <button type="button" id="qa-ask-human-btn-fallback" class="btn btn-secondary"></button>
+          </div>
         </div>
-        <div class="form-group">
-          <label for="customer-name-fallback">{{ block.settings.modal_name_label | default: 'Your Name' }}</label>
-          <input type="text" id="customer-name-fallback" name="customerName" value="{{ customer.name }}" {% if block.settings.modal_name_required %}required{% endif %}>
+        <!-- Question Container -->
+        <div id="qa-question-container-fallback">
+          <div class="form-group">
+            <label for="question-fallback">{{ block.settings.modal_question_label | default: 'Your Question' }}</label>
+            <textarea id="question-fallback" name="question" rows="4" required maxlength="500"></textarea>
+            <div class="char-counter-fallback">0 / 500</div>
+          </div>
         </div>
-        <div class="form-group">
-          <label for="customer-email-fallback">{{ block.settings.modal_email_label | default: 'Your Email' }}</label>
-          <input type="email" id="customer-email-fallback" name="customerEmail" value="{{ customer.email }}" {% if block.settings.modal_email_required %}required{% endif %}>
+        <!-- Human Form Fields (Name & Email) -->
+        <div id="qa-human-form-fields-fallback" style="display: none;">
+          <div class="form-group">
+            <label for="customer-name-fallback">{{ block.settings.modal_name_label | default: 'Your Name' }}</label>
+            <input type="text" id="customer-name-fallback" name="customerName" value="{{ customer.name }}" {% if block.settings.modal_name_required %}required{% endif %}>
+          </div>
+          <div class="form-group">
+            <label for="customer-email-fallback">{{ block.settings.modal_email_label | default: 'Your Email' }}</label>
+            <input type="email" id="customer-email-fallback" name="customerEmail" value="{{ customer.email }}" {% if block.settings.modal_email_required %}required{% endif %}>
+          </div>
         </div>
         <input type="hidden" name="shop" value="{{ shop.domain }}">
         <input type="hidden" name="productId" value="{{ product.id }}">
         <div class="qa-form-actions">
-          <button type="submit" id="qa-submit-btn-fallback" class="btn btn-primary btn-full-width">{{ block.settings.modal_submit_text | default: 'Submit Question' }}</button>
+          <button type="submit" id="qa-submit-btn-fallback" class="btn btn-primary btn-full-width" data-default-text="{{ block.settings.modal_submit_text | default: 'Submit Question' }}">{{ block.settings.modal_submit_text | default: 'Submit Question' }}</button>
+          <button type="button" id="qa-ask-ai-btn-fallback" class="btn btn-primary btn-full-width" style="display: none;" data-default-text="Ask with AI">Ask with AI</button>
+          <button type="button" id="qa-bypass-ai-btn-fallback" class="btn-link-style" style="display: none;">Or, ask a human</button>
         </div>
       </form>
       <div id="form-message-fallback" class="form-message" style="display: none;"></div>
@@ -461,6 +492,128 @@
     flex-direction: column;
     gap: 10px;
   }
+
+  /* AI-specific styles for fallback modal */
+  #qa-ai-response-container-fallback {
+    padding: 15px;
+    border: 1px solid #e1e1e1;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    background: #f9f9f9;
+  }
+
+  #qa-ai-answer-fallback {
+    margin-bottom: 15px;
+    white-space: pre-wrap;
+  }
+
+  .qa-vote-container-fallback {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 15px;
+    position: relative;
+  }
+
+  .product-qa-form .qa-vote-container-fallback .btn-vote {
+    padding: 8px 16px;
+    min-width: 120px;
+    text-align: center;
+    border: 1px solid #d0d0d0;
+    background: #f6f6f7;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .product-qa-form .qa-vote-container-fallback .btn-vote:hover:not([disabled]) {
+    background: #e4e5e7;
+    transform: translateY(-1px);
+  }
+
+  .product-qa-form .qa-vote-container-fallback .btn-vote .vote-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+
+  .product-qa-form .qa-vote-container-fallback .btn-vote-not-helpful .vote-icon {
+    transform: rotate(180deg);
+  }
+
+  .product-qa-form .qa-vote-container-fallback .btn-vote-helpful {
+    background: #e8f5e9;
+    border-color: #4caf50;
+    color: #2e7d32;
+  }
+
+  .product-qa-form .qa-vote-container-fallback .btn-vote-helpful:hover:not([disabled]) {
+    background: #c8e6c9;
+  }
+
+  .product-qa-form .qa-vote-container-fallback .btn-vote-helpful.voted {
+    background: #4caf50;
+    border-color: #388e3c;
+    color: white;
+    cursor: default;
+  }
+
+  .product-qa-form .qa-vote-container-fallback .btn-vote-not-helpful {
+    background: #ffebee;
+    border-color: #f44336;
+    color: #c62828;
+  }
+
+  .product-qa-form .qa-vote-container-fallback .btn-vote-not-helpful:hover:not([disabled]) {
+    background: #ffcdd2;
+  }
+
+  .product-qa-form .qa-vote-container-fallback .btn-vote-not-helpful.voted {
+    background: #f44336;
+    border-color: #d32f2f;
+    color: white;
+    cursor: default;
+  }
+
+  .product-qa-form .qa-vote-container-fallback .btn-vote:disabled {
+    opacity: 0.6;
+    cursor: default;
+    transform: none;
+  }
+
+  .qa-ai-options {
+    margin-top: 15px;
+    border-top: 1px solid #e1e1e1;
+    padding-top: 15px;
+    text-align: center;
+  }
+
+  .qa-ai-options p {
+    margin: 0 0 10px;
+    font-size: 14px;
+  }
+
+  .btn-secondary {
+    background: #f0f0f0;
+    color: #333;
+  }
+
+  .btn-link-style {
+    background: none;
+    border: none;
+    color: #6B7280;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 10px;
+    font-size: 14px;
+    width: 100%;
+    text-align: center;
+  }
 </style>
 
 <script data-qa-display-version="v25-20251207">
@@ -496,17 +649,51 @@
   document.addEventListener('DOMContentLoaded', async function() {
     console.log('[QA Display] Script loading, version v25-20251207');
 
-    // Setup fallback modal handlers
+    // Setup fallback modal with full AI support
     const fallbackModal = document.getElementById('qa-fallback-modal');
     const fallbackForm = document.getElementById('qa-form-fallback');
     const fallbackCloseBtn = document.querySelector('.close-modal-fallback');
-    const fallbackSubmitBtn = document.getElementById('qa-submit-btn-fallback');
-    const fallbackMessage = document.getElementById('form-message-fallback');
-    const fallbackCharCounter = document.querySelector('.char-counter-fallback');
-    const fallbackQuestionTextarea = document.getElementById('question-fallback');
 
     if (fallbackModal && fallbackForm) {
-      console.log('[QA Display] Fallback modal found, setting up handlers');
+      console.log('[QA Display] Fallback modal found, setting up handlers with AI support');
+
+      let fallbackAiEnabled = false;
+      let fallbackCurrentAiLogId = null;
+      let fallbackHumanMode = false;
+      let fallbackTexts = {
+        success: 'Thank you! Your question has been submitted.',
+        error: 'There was an error.',
+        submitting: 'Submitting...',
+        aiSubmitButton: 'Ask with AI',
+        aiHumanPrompt: 'Not the answer you were looking for?',
+        aiHumanButton: 'Ask a Human Expert',
+        aiBypassButton: 'Or, ask a human',
+        aiSuggestedAnswerLabel: 'Suggested Answer:',
+        aiHelpfulButton: 'Helpful',
+        aiHelpfulVoted: 'Voted!',
+        aiNotHelpfulButton: 'Not Helpful',
+        aiNotHelpfulVoted: 'Voted!'
+      };
+
+      // Get all fallback elements
+      const fallbackElements = {
+        questionContainer: document.getElementById('qa-question-container-fallback'),
+        humanFormFields: document.getElementById('qa-human-form-fields-fallback'),
+        aiResponseContainer: document.getElementById('qa-ai-response-container-fallback'),
+        aiAnswerDiv: document.getElementById('qa-ai-answer-fallback'),
+        suggestedAnswerLabel: document.getElementById('qa-suggested-answer-label-fallback'),
+        voteContainer: document.querySelector('.qa-vote-container-fallback'),
+        submitBtn: document.getElementById('qa-submit-btn-fallback'),
+        askAiBtn: document.getElementById('qa-ask-ai-btn-fallback'),
+        askHumanBtn: document.getElementById('qa-ask-human-btn-fallback'),
+        bypassAiBtn: document.getElementById('qa-bypass-ai-btn-fallback'),
+        questionTextarea: document.getElementById('question-fallback'),
+        formMessage: document.getElementById('form-message-fallback'),
+        charCounter: document.querySelector('.char-counter-fallback'),
+        humanPrompt: document.getElementById('qa-human-prompt-fallback'),
+        customerNameInput: document.getElementById('customer-name-fallback'),
+        customerEmailInput: document.getElementById('customer-email-fallback')
+      };
 
       // Close button handler
       if (fallbackCloseBtn) {
@@ -528,86 +715,298 @@
       });
 
       // Character counter
-      if (fallbackCharCounter && fallbackQuestionTextarea) {
-        fallbackQuestionTextarea.addEventListener('input', function() {
-          fallbackCharCounter.textContent = `${fallbackQuestionTextarea.value.length} / 500`;
+      if (fallbackElements.charCounter && fallbackElements.questionTextarea) {
+        fallbackElements.questionTextarea.addEventListener('input', function() {
+          fallbackElements.charCounter.textContent = `${fallbackElements.questionTextarea.value.length} / 500`;
         });
       }
 
-      // Form submission
-      fallbackSubmitBtn.addEventListener('click', function(e) {
+      // AI Log update function
+      async function updateFallbackAiLog(data) {
+        if (!fallbackCurrentAiLogId) return;
+        try {
+          await fetch('/apps/a/api/public/ai-log-update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ aiLogId: fallbackCurrentAiLogId, ...data })
+          });
+        } catch (error) {
+          console.error('Failed to update AI log:', error);
+        }
+      }
+
+      // Show human form
+      function showFallbackHumanForm() {
+        if (fallbackCurrentAiLogId) {
+          updateFallbackAiLog({ askedHuman: true });
+        }
+        fallbackElements.aiResponseContainer.style.display = 'none';
+        fallbackElements.questionContainer.style.display = 'block';
+        fallbackElements.humanFormFields.style.display = 'block';
+        fallbackElements.askAiBtn.style.display = 'none';
+        fallbackElements.bypassAiBtn.style.display = 'none';
+        fallbackElements.submitBtn.style.display = 'inline-block';
+        fallbackHumanMode = true;
+        resetFallbackVoteButtons();
+      }
+
+      // Set initial state based on AI settings
+      function setFallbackInitialState(aiEnabled) {
+        fallbackAiEnabled = aiEnabled;
+        if (aiEnabled) {
+          fallbackElements.askAiBtn.style.display = 'inline-block';
+          fallbackElements.bypassAiBtn.style.display = 'inline-block';
+          fallbackElements.submitBtn.style.display = 'none';
+          fallbackElements.humanFormFields.style.display = 'none';
+          fallbackHumanMode = false;
+        } else {
+          fallbackHumanMode = true;
+          showFallbackHumanForm();
+        }
+      }
+
+      // Reset vote buttons
+      function resetFallbackVoteButtons() {
+        if (!fallbackElements.voteContainer) return;
+        const buttons = fallbackElements.voteContainer.querySelectorAll('.btn-vote');
+        buttons.forEach((button) => {
+          button.disabled = false;
+          button.classList.remove('voted');
+          const isHelpful = button.classList.contains('btn-vote-helpful');
+          const defaultLabel = button.dataset.defaultText || (isHelpful ? fallbackTexts.aiHelpfulButton : fallbackTexts.aiNotHelpfulButton);
+          const labelSpan = button.querySelector('.vote-label');
+          if (labelSpan) {
+            labelSpan.textContent = defaultLabel;
+          }
+        });
+      }
+
+      // Apply translations
+      function applyFallbackTranslations(translations) {
+        fallbackTexts = {
+          ...fallbackTexts,
+          ...(translations.formSuccessMessage && { success: translations.formSuccessMessage }),
+          ...(translations.formErrorMessage && { error: translations.formErrorMessage }),
+          ...(translations.formSubmittingText && { submitting: translations.formSubmittingText }),
+          ...(translations.aiSubmitButton && { aiSubmitButton: translations.aiSubmitButton }),
+          ...(translations.aiHumanPrompt && { aiHumanPrompt: translations.aiHumanPrompt }),
+          ...(translations.aiHumanButton && { aiHumanButton: translations.aiHumanButton }),
+          ...(translations.aiBypassButton && { aiBypassButton: translations.aiBypassButton }),
+          ...(translations.aiSuggestedAnswerLabel && { aiSuggestedAnswerLabel: translations.aiSuggestedAnswerLabel }),
+          ...(translations.aiHelpfulButton && { aiHelpfulButton: translations.aiHelpfulButton }),
+          ...(!translations.aiHelpfulButton && translations.displayHelpfulText ? { aiHelpfulButton: translations.displayHelpfulText } : {}),
+          ...(translations.displayVotedText && { aiHelpfulVoted: translations.displayVotedText }),
+          ...(translations.aiNotHelpfulButton && { aiNotHelpfulButton: translations.aiNotHelpfulButton }),
+          ...(translations.displayVotedText && { aiNotHelpfulVoted: translations.displayVotedText }),
+        };
+
+        if (fallbackElements.submitBtn) {
+          fallbackElements.submitBtn.textContent = fallbackElements.submitBtn.dataset.defaultText;
+        }
+        if (fallbackElements.suggestedAnswerLabel) {
+          fallbackElements.suggestedAnswerLabel.textContent = fallbackTexts.aiSuggestedAnswerLabel;
+        }
+        if (fallbackElements.askAiBtn) {
+          fallbackElements.askAiBtn.textContent = fallbackTexts.aiSubmitButton;
+          fallbackElements.askAiBtn.dataset.defaultText = fallbackTexts.aiSubmitButton;
+        }
+        if(fallbackElements.humanPrompt) fallbackElements.humanPrompt.textContent = fallbackTexts.aiHumanPrompt;
+        if(fallbackElements.askHumanBtn) fallbackElements.askHumanBtn.textContent = fallbackTexts.aiHumanButton;
+        if(fallbackElements.bypassAiBtn) fallbackElements.bypassAiBtn.textContent = fallbackTexts.aiBypassButton;
+
+        if (fallbackElements.voteContainer && (translations.aiHelpfulButton || translations.aiNotHelpfulButton)) {
+          const helpfulButton = fallbackElements.voteContainer.querySelector('.btn-vote-helpful');
+          const notHelpfulButton = fallbackElements.voteContainer.querySelector('.btn-vote-not-helpful');
+
+          if (helpfulButton && translations.aiHelpfulButton) {
+            helpfulButton.dataset.defaultText = fallbackTexts.aiHelpfulButton;
+            const labelSpan = helpfulButton.querySelector('.vote-label');
+            if (labelSpan) {
+              labelSpan.textContent = fallbackTexts.aiHelpfulButton;
+            }
+          }
+          if (notHelpfulButton && translations.aiNotHelpfulButton) {
+            notHelpfulButton.dataset.defaultText = fallbackTexts.aiNotHelpfulButton;
+            const labelSpan = notHelpfulButton.querySelector('.vote-label');
+            if (labelSpan) {
+              labelSpan.textContent = fallbackTexts.aiNotHelpfulButton;
+            }
+          }
+        }
+      }
+
+      // Event listeners
+      fallbackElements.askHumanBtn.addEventListener('click', showFallbackHumanForm);
+      fallbackElements.bypassAiBtn.addEventListener('click', showFallbackHumanForm);
+
+      // Vote buttons handler
+      if (fallbackElements.voteContainer) {
+        fallbackElements.voteContainer.addEventListener('click', (e) => {
+          const button = e.target.closest('.btn-vote');
+          if (!button || button.disabled) {
+            return;
+          }
+          const voteValue = parseInt(button.dataset.vote);
+          const isHelpful = voteValue === 1;
+
+          // Disable both buttons
+          const allButtons = fallbackElements.voteContainer.querySelectorAll('.btn-vote');
+          allButtons.forEach(btn => btn.disabled = true);
+
+          // Mark this button as voted
+          button.classList.add('voted');
+          const labelSpan = button.querySelector('.vote-label');
+          if (labelSpan) {
+            labelSpan.textContent = isHelpful ? fallbackTexts.aiHelpfulVoted : fallbackTexts.aiNotHelpfulVoted;
+          }
+
+          // Send vote to backend
+          updateFallbackAiLog({ vote: voteValue });
+        });
+      }
+
+      // Ask AI button
+      fallbackElements.askAiBtn.addEventListener('click', async () => {
+        const question = fallbackElements.questionTextarea.value.trim();
+        if (!question) {
+          showFallbackMessage('Please enter a question first.', 'error');
+          return;
+        }
+
+        fallbackElements.askAiBtn.disabled = true;
+        fallbackElements.askAiBtn.textContent = fallbackTexts.submitting;
+        fallbackElements.bypassAiBtn.style.display = 'none';
+        hideFallbackMessage();
+
+        try {
+          const response = await fetch('/apps/a/api/public/ai-answer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              customerQuestion: question,
+              productId: '{{ product.id }}',
+              shop: '{{ shop.domain }}'
+            })
+          });
+
+          if (!response.ok) throw new Error('Network response was not ok');
+          const data = await response.json();
+          fallbackCurrentAiLogId = data.aiLogId;
+
+          if (data.error || !data.answer || !data.message) {
+            const fallbackMessage = data.error || data.message || 'No immediate answer available. Please ask a human expert.';
+            showFallbackMessage(fallbackMessage, 'error');
+            showFallbackHumanForm();
+          } else {
+            fallbackElements.aiAnswerDiv.textContent = data.message;
+            fallbackElements.aiResponseContainer.style.display = 'block';
+            fallbackElements.questionContainer.style.display = 'none';
+            fallbackElements.askAiBtn.style.display = 'none';
+            fallbackElements.submitBtn.style.display = 'none';
+            resetFallbackVoteButtons();
+          }
+        } catch (error) {
+          console.error('AI Answer fetch error:', error);
+          showFallbackMessage('Error contacting AI. Please ask a human expert.', 'error');
+          showFallbackHumanForm();
+        } finally {
+          fallbackElements.askAiBtn.disabled = false;
+          fallbackElements.askAiBtn.textContent = fallbackElements.askAiBtn.dataset.defaultText;
+        }
+      });
+
+      // Submit button (human form submission)
+      fallbackElements.submitBtn.addEventListener('click', function(e) {
         e.preventDefault();
 
-        const formData = new FormData(fallbackForm);
-        const shopDomain = '{{ shop.domain }}';
-
-        // Simple validation
-        const question = formData.get('question');
-        const customerName = formData.get('customerName');
-        const customerEmail = formData.get('customerEmail');
-
-        if (!question || !question.trim()) {
+        const trimmedQuestion = fallbackElements.questionTextarea.value.trim();
+        if (!trimmedQuestion) {
           showFallbackMessage('Please enter a question.', 'error');
+          fallbackElements.questionTextarea.focus();
           return;
         }
-
-        if (!customerName || !customerName.trim()) {
-          showFallbackMessage('Please enter your name.', 'error');
-          return;
-        }
-
-        if (!customerEmail || !customerEmail.trim()) {
-          showFallbackMessage('Please enter your email.', 'error');
-          return;
-        }
+        fallbackElements.questionTextarea.value = trimmedQuestion;
 
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(customerEmail)) {
-          showFallbackMessage('Please enter a valid email address.', 'error');
-          return;
+
+        if (fallbackHumanMode) {
+          if (fallbackElements.customerNameInput) {
+            const nameValue = fallbackElements.customerNameInput.value.trim();
+            if (!nameValue) {
+              showFallbackMessage('Please enter your name.', 'error');
+              fallbackElements.customerNameInput.focus();
+              return;
+            }
+            fallbackElements.customerNameInput.value = nameValue;
+          }
+
+          if (fallbackElements.customerEmailInput) {
+            const emailValue = fallbackElements.customerEmailInput.value.trim();
+            if (!emailValue) {
+              showFallbackMessage('Please enter your email.', 'error');
+              fallbackElements.customerEmailInput.focus();
+              return;
+            }
+            if (!emailRegex.test(emailValue)) {
+              showFallbackMessage('Please enter a valid email address.', 'error');
+              fallbackElements.customerEmailInput.focus();
+              return;
+            }
+            fallbackElements.customerEmailInput.value = emailValue;
+          }
         }
 
-        // Submit form
-        fallbackSubmitBtn.disabled = true;
-        fallbackSubmitBtn.textContent = 'Submitting...';
+        const formData = new FormData(fallbackForm);
+        fallbackElements.submitBtn.disabled = true;
+        fallbackElements.submitBtn.textContent = fallbackTexts.submitting;
 
-        fetch('/apps/a/api/public/questions', {
-          method: 'POST',
-          body: formData
-        })
-        .then(res => res.json())
-        .then(data => {
-          if (data.question || data.success) {
-            showFallbackMessage('Thank you! Your question has been submitted.', 'success');
-            fallbackForm.reset();
-            if (fallbackCharCounter) fallbackCharCounter.textContent = '0 / 500';
-            if (window.reloadQuestions) {
-              setTimeout(() => window.reloadQuestions(), 1000);
+        fetch('/apps/a/api/public/questions', { method: 'POST', body: formData })
+          .then(res => res.json())
+          .then(data => {
+            if (data.question || data.success) {
+              showFallbackMessage(fallbackTexts.success, 'success');
+              fallbackForm.reset();
+              if (fallbackElements.charCounter) fallbackElements.charCounter.textContent = '0 / 500';
+              if (window.reloadQuestions) setTimeout(() => window.reloadQuestions(), 1000);
+              setTimeout(window.closeQAModal, 2000);
+            } else {
+              showFallbackMessage(data.error || fallbackTexts.error, 'error');
             }
-            setTimeout(window.closeQAModal, 2000);
-          } else {
-            showFallbackMessage(data.error || 'There was an error submitting your question.', 'error');
-          }
-        })
-        .catch(err => {
-          console.error('Error submitting question:', err);
-          showFallbackMessage('There was an error submitting your question.', 'error');
-        })
-        .finally(() => {
-          fallbackSubmitBtn.disabled = false;
-          fallbackSubmitBtn.textContent = '{{ block.settings.modal_submit_text | default: "Submit Question" }}';
-        });
+          })
+          .catch(err => showFallbackMessage(fallbackTexts.error, 'error'))
+          .finally(() => {
+            fallbackElements.submitBtn.disabled = false;
+            fallbackElements.submitBtn.textContent = fallbackElements.submitBtn.dataset.defaultText;
+          });
       });
 
       function showFallbackMessage(message, type) {
-        if (!fallbackMessage) return;
-        fallbackMessage.textContent = message;
-        fallbackMessage.className = `form-message ${type}`;
-        fallbackMessage.style.display = 'block';
-        setTimeout(() => {
-          fallbackMessage.style.display = 'none';
-        }, 5000);
+        if (!fallbackElements.formMessage) return;
+        fallbackElements.formMessage.textContent = message;
+        fallbackElements.formMessage.className = `form-message ${type}`;
+        fallbackElements.formMessage.style.display = 'block';
       }
+
+      function hideFallbackMessage() {
+        if (!fallbackElements.formMessage) return;
+        fallbackElements.formMessage.style.display = 'none';
+      }
+
+      // Load AI settings and translations for fallback modal
+      Promise.all([
+        fetch(`/apps/a/api/public/ai-settings?shop=${encodeURIComponent(shopDomain)}`).then(res => res.ok ? res.json() : { aiEnabled: false }),
+        fetch(`/apps/a/api/public/translations?shop=${encodeURIComponent(shopDomain)}`).then(res => res.ok ? res.json() : { translations: {} })
+      ]).then(([aiSettings, translationData]) => {
+        const translations = translationData.translations || {};
+        console.log('[QA Display] Fallback modal - AI Settings:', aiSettings);
+        console.log('[QA Display] Fallback modal - Translations:', translations);
+
+        applyFallbackTranslations(translations);
+        setFallbackInitialState(aiSettings.aiEnabled);
+      }).catch(error => {
+        console.error("Error fetching settings or translations for fallback modal:", error);
+        setFallbackInitialState(false);
+      });
     }
 
     const productId = document.querySelector('[data-product-id]')?.dataset.productId;
