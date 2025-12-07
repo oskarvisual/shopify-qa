@@ -55,18 +55,18 @@
         <div id="qa-ai-response-container-fallback" style="display: none;">
           <p><strong id="qa-suggested-answer-label-fallback">Suggested Answer:</strong></p>
           <div id="qa-ai-answer-fallback"></div>
-          <div class="qa-vote-container-fallback" data-version="20251207-v25">
+          <div class="qa-vote-container-fallback" data-version="20251207-v26">
             <button type="button" class="btn-vote btn-vote-helpful" data-vote="1" data-button-type="helpful">
               <svg class="vote-icon" width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6z"></path>
               </svg>
-              <span class="vote-label">{{ block.settings.ai_helpful_button_text | default: 'Helpful' }}</span>
+              <span class="vote-label">Helpful</span>
             </button>
             <button type="button" class="btn-vote btn-vote-not-helpful" data-vote="-1" data-button-type="not-helpful">
               <svg class="vote-icon vote-icon-down" width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6z"></path>
               </svg>
-              <span class="vote-label">{{ block.settings.ai_not_helpful_button_text | default: 'Not Helpful' }}</span>
+              <span class="vote-label">Not Helpful</span>
             </button>
           </div>
           <div class="qa-ai-options">
@@ -817,18 +817,19 @@
         if(fallbackElements.askHumanBtn) fallbackElements.askHumanBtn.textContent = fallbackTexts.aiHumanButton;
         if(fallbackElements.bypassAiBtn) fallbackElements.bypassAiBtn.textContent = fallbackTexts.aiBypassButton;
 
-        if (fallbackElements.voteContainer && (translations.aiHelpfulButton || translations.aiNotHelpfulButton)) {
+        // Always update vote buttons with current text values
+        if (fallbackElements.voteContainer) {
           const helpfulButton = fallbackElements.voteContainer.querySelector('.btn-vote-helpful');
           const notHelpfulButton = fallbackElements.voteContainer.querySelector('.btn-vote-not-helpful');
 
-          if (helpfulButton && translations.aiHelpfulButton) {
+          if (helpfulButton) {
             helpfulButton.dataset.defaultText = fallbackTexts.aiHelpfulButton;
             const labelSpan = helpfulButton.querySelector('.vote-label');
             if (labelSpan) {
               labelSpan.textContent = fallbackTexts.aiHelpfulButton;
             }
           }
-          if (notHelpfulButton && translations.aiNotHelpfulButton) {
+          if (notHelpfulButton) {
             notHelpfulButton.dataset.defaultText = fallbackTexts.aiNotHelpfulButton;
             const labelSpan = notHelpfulButton.querySelector('.vote-label');
             if (labelSpan) {
