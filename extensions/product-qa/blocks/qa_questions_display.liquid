@@ -55,19 +55,20 @@
         <div id="qa-ai-response-container-fallback" style="display: none;">
           <p><strong id="qa-suggested-answer-label-fallback">Suggested Answer:</strong></p>
           <div id="qa-ai-answer-fallback"></div>
-          <div class="qa-vote-container-fallback" data-version="20251207-v35">
-            <button type="button" class="btn-vote btn-vote-helpful" data-vote="1" data-button-type="helpful">
-              <svg class="vote-icon" width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6z"></path>
-              </svg>
-              <span class="vote-label">Helpful</span>
-            </button>
-            <button type="button" class="btn-vote btn-vote-not-helpful" data-vote="-1" data-button-type="not-helpful">
-              <svg class="vote-icon vote-icon-down" width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6z"></path>
-              </svg>
-              <span class="vote-label">Not Helpful</span>
-            </button>
+          <div class="qa-vote-section">
+            <p id="qa-vote-prompt-fallback"></p>
+            <div class="qa-vote-container-fallback" data-version="20251208-v27">
+              <button type="button" class="btn-vote btn-vote-helpful" data-vote="1" data-button-type="helpful">
+                <svg class="vote-icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6z"></path>
+                </svg>
+              </button>
+              <button type="button" class="btn-vote btn-vote-not-helpful" data-vote="-1" data-button-type="not-helpful">
+                <svg class="vote-icon vote-icon-down" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6z"></path>
+                </svg>
+              </button>
+            </div>
           </div>
           <div class="qa-ai-options">
             <p id="qa-human-prompt-fallback"></p>
@@ -507,38 +508,48 @@
     white-space: pre-wrap;
   }
 
+  .qa-vote-section {
+    margin-bottom: 15px;
+  }
+
+  .qa-vote-section p {
+    margin: 0 0 10px;
+    font-size: 14px;
+    text-align: center;
+  }
+
   .qa-vote-container-fallback {
     display: flex;
     justify-content: center;
-    gap: 10px;
-    margin-bottom: 15px;
+    gap: 12px;
     position: relative;
   }
 
   .product-qa-form .qa-vote-container-fallback .btn-vote {
-    padding: 8px 16px;
-    min-width: 120px;
+    padding: 10px;
+    min-width: auto;
+    width: 44px;
+    height: 44px;
     text-align: center;
     border: 1px solid #d0d0d0;
     background: #f6f6f7;
-    border-radius: 4px;
+    border-radius: 50%;
     cursor: pointer;
     font-size: 14px;
     transition: all 0.2s ease;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
   }
 
   .product-qa-form .qa-vote-container-fallback .btn-vote:hover:not([disabled]) {
     background: #e4e5e7;
-    transform: translateY(-1px);
+    transform: translateY(-2px);
   }
 
   .product-qa-form .qa-vote-container-fallback .btn-vote .vote-icon {
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
     flex-shrink: 0;
   }
 
@@ -672,10 +683,7 @@
         aiHumanButton: 'Ask a Human Expert',
         aiBypassButton: 'Or, ask a human',
         aiSuggestedAnswerLabel: 'Suggested Answer:',
-        aiHelpfulButton: 'Helpful',
-        aiHelpfulVoted: 'Voted!',
-        aiNotHelpfulButton: 'Not Helpful',
-        aiNotHelpfulVoted: 'Voted!'
+        aiVotePrompt: 'Was this AI answer helpful?'
       };
 
       // Get all fallback elements
@@ -685,6 +693,7 @@
         aiResponseContainer: document.getElementById('qa-ai-response-container-fallback'),
         aiAnswerDiv: document.getElementById('qa-ai-answer-fallback'),
         suggestedAnswerLabel: document.getElementById('qa-suggested-answer-label-fallback'),
+        votePrompt: document.getElementById('qa-vote-prompt-fallback'),
         voteContainer: document.querySelector('.qa-vote-container-fallback'),
         submitBtn: document.getElementById('qa-submit-btn-fallback'),
         askAiBtn: document.getElementById('qa-ask-ai-btn-fallback'),
@@ -775,17 +784,6 @@
         buttons.forEach((button) => {
           button.disabled = false;
           button.classList.remove('voted');
-          const buttonType = button.dataset.buttonType; // 'helpful' or 'not-helpful'
-          const isHelpful = buttonType === 'helpful';
-          const defaultLabel = isHelpful ? fallbackTexts.aiHelpfulButton : fallbackTexts.aiNotHelpfulButton;
-
-          // Update dataset for future resets
-          button.dataset.defaultText = defaultLabel;
-
-          const labelSpan = button.querySelector('.vote-label');
-          if (labelSpan) {
-            labelSpan.textContent = defaultLabel;
-          }
         });
       }
 
@@ -801,11 +799,7 @@
           ...(translations.aiHumanButton && { aiHumanButton: translations.aiHumanButton }),
           ...(translations.aiBypassButton && { aiBypassButton: translations.aiBypassButton }),
           ...(translations.aiSuggestedAnswerLabel && { aiSuggestedAnswerLabel: translations.aiSuggestedAnswerLabel }),
-          ...(translations.aiHelpfulButton && { aiHelpfulButton: translations.aiHelpfulButton }),
-          ...(!translations.aiHelpfulButton && translations.displayHelpfulText ? { aiHelpfulButton: translations.displayHelpfulText } : {}),
-          ...(translations.displayVotedText && { aiHelpfulVoted: translations.displayVotedText }),
-          ...(translations.aiNotHelpfulButton && { aiNotHelpfulButton: translations.aiNotHelpfulButton }),
-          ...(translations.displayVotedText && { aiNotHelpfulVoted: translations.displayVotedText }),
+          ...(translations.aiVotePrompt && { aiVotePrompt: translations.aiVotePrompt }),
         };
 
         if (fallbackElements.submitBtn) {
@@ -818,12 +812,10 @@
           fallbackElements.askAiBtn.textContent = fallbackTexts.aiSubmitButton;
           fallbackElements.askAiBtn.dataset.defaultText = fallbackTexts.aiSubmitButton;
         }
+        if(fallbackElements.votePrompt) fallbackElements.votePrompt.textContent = fallbackTexts.aiVotePrompt;
         if(fallbackElements.humanPrompt) fallbackElements.humanPrompt.textContent = fallbackTexts.aiHumanPrompt;
         if(fallbackElements.askHumanBtn) fallbackElements.askHumanBtn.textContent = fallbackTexts.aiHumanButton;
         if(fallbackElements.bypassAiBtn) fallbackElements.bypassAiBtn.textContent = fallbackTexts.aiBypassButton;
-
-        // Vote buttons will be updated when resetFallbackVoteButtons() is called
-        // after the AI response is shown
       }
 
       // Event listeners
@@ -838,7 +830,6 @@
             return;
           }
           const voteValue = parseInt(button.dataset.vote);
-          const isHelpful = voteValue === 1;
 
           // Disable both buttons
           const allButtons = fallbackElements.voteContainer.querySelectorAll('.btn-vote');
@@ -846,10 +837,6 @@
 
           // Mark this button as voted
           button.classList.add('voted');
-          const labelSpan = button.querySelector('.vote-label');
-          if (labelSpan) {
-            labelSpan.textContent = isHelpful ? fallbackTexts.aiHelpfulVoted : fallbackTexts.aiNotHelpfulVoted;
-          }
 
           // Send vote to backend
           updateFallbackAiLog({ vote: voteValue });
