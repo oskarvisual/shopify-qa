@@ -683,7 +683,8 @@
         aiHumanButton: 'Ask a Human Expert',
         aiBypassButton: 'Or, ask a human',
         aiSuggestedAnswerLabel: 'Suggested Answer:',
-        aiVotePrompt: 'Was this AI answer helpful?'
+        aiVotePrompt: 'Was this AI answer helpful?',
+        aiVoteThanks: 'Thanks for your feedback!'
       };
 
       // Get all fallback elements
@@ -800,6 +801,7 @@
           ...(translations.aiBypassButton && { aiBypassButton: translations.aiBypassButton }),
           ...(translations.aiSuggestedAnswerLabel && { aiSuggestedAnswerLabel: translations.aiSuggestedAnswerLabel }),
           ...(translations.aiVotePrompt && { aiVotePrompt: translations.aiVotePrompt }),
+          ...(translations.aiVoteThanks && { aiVoteThanks: translations.aiVoteThanks }),
         };
 
         if (fallbackElements.submitBtn) {
@@ -837,6 +839,11 @@
 
           // Mark this button as voted
           button.classList.add('voted');
+
+          // Change prompt text to thanks message
+          if (fallbackElements.votePrompt) {
+            fallbackElements.votePrompt.textContent = fallbackTexts.aiVoteThanks;
+          }
 
           // Send vote to backend
           updateFallbackAiLog({ vote: voteValue });

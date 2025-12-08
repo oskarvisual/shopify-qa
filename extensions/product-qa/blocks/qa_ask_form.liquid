@@ -217,7 +217,8 @@ document.addEventListener('DOMContentLoaded', function() {
         aiHumanButton: 'Ask a Human Expert',
         aiBypassButton: 'Or, ask a human',
         aiSuggestedAnswerLabel: 'Suggested Answer:',
-        aiVotePrompt: 'Was this AI answer helpful?'
+        aiVotePrompt: 'Was this AI answer helpful?',
+        aiVoteThanks: 'Thanks for your feedback!'
     };
 
     // Only define openQAModal if it doesn't exist yet
@@ -358,6 +359,11 @@ document.addEventListener('DOMContentLoaded', function() {
           // Mark this button as voted
           button.classList.add('voted');
 
+          // Change prompt text to thanks message
+          if (elements.votePrompt) {
+            elements.votePrompt.textContent = texts.aiVoteThanks;
+          }
+
           // Send vote to backend
           updateAiLog({ vote: voteValue });
         });
@@ -495,6 +501,7 @@ document.addEventListener('DOMContentLoaded', function() {
             ...(translations.aiBypassButton && { aiBypassButton: translations.aiBypassButton }),
             ...(translations.aiSuggestedAnswerLabel && { aiSuggestedAnswerLabel: translations.aiSuggestedAnswerLabel }),
             ...(translations.aiVotePrompt && { aiVotePrompt: translations.aiVotePrompt }),
+            ...(translations.aiVoteThanks && { aiVoteThanks: translations.aiVoteThanks }),
         };
 
         if (elements.submitBtn) {

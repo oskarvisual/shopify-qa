@@ -200,6 +200,7 @@ export const action = async ({ request }) => {
       aiBypassButton: formData.get("translationAiBypassButton"),
       aiSuggestedAnswerLabel: formData.get("translationAiSuggestedAnswerLabel"),
       aiVotePrompt: formData.get("translationAiVotePrompt"),
+      aiVoteThanks: formData.get("translationAiVoteThanks"),
     };
 
     let translationData = Object.fromEntries(
@@ -342,6 +343,7 @@ export default function SettingsPage() {
     translationAiBypassButton: translationSettings?.aiBypassButton || "",
     translationAiSuggestedAnswerLabel: translationSettings?.aiSuggestedAnswerLabel || "",
     translationAiVotePrompt: translationSettings?.aiVotePrompt || "",
+    translationAiVoteThanks: translationSettings?.aiVoteThanks || "",
     smtpFromEmail: emailSettings?.smtpFromEmail || "",
   });
 
@@ -698,6 +700,7 @@ export default function SettingsPage() {
                       <TextField label="Bypass AI Link Text" name="translationAiBypassButton" value={formState.translationAiBypassButton || ""} onChange={handleFormChange("translationAiBypassButton")} autoComplete="off" placeholder="Or, ask a human" />
                       <TextField label="Suggested Answer Label" name="translationAiSuggestedAnswerLabel" value={formState.translationAiSuggestedAnswerLabel || ""} onChange={handleFormChange("translationAiSuggestedAnswerLabel")} autoComplete="off" placeholder="Suggested Answer:" />
                       <TextField label="AI Vote Prompt Text" name="translationAiVotePrompt" value={formState.translationAiVotePrompt || ""} onChange={handleFormChange("translationAiVotePrompt")} autoComplete="off" placeholder="Was this AI answer helpful?" />
+                      <TextField label="AI Vote Thanks Text" name="translationAiVoteThanks" value={formState.translationAiVoteThanks || ""} onChange={handleFormChange("translationAiVoteThanks")} autoComplete="off" placeholder="Thanks for your feedback!" />
                     </>
                   )}
 
