@@ -180,24 +180,34 @@ Una vez que aparezca la URL del túnel, acceder desde el Admin de Shopify.
 
 ## 🔒 GDPR Webhooks (Mandatory for Shopify Apps)
 
-The app implements three mandatory GDPR webhooks for compliance:
+The app implements three mandatory GDPR compliance webhooks required for all Shopify App Store apps:
 
 ### Webhooks Implemented
 - `customers/data_request` - Gathers and sends customer data via email
 - `customers/redact` - Anonymizes customer personal data
-- `shop/redact` - Deletes all shop data after uninstall
+- `shop/redact` - Deletes all shop data 48 hours after app uninstall
 
 ### Configuration
-**IMPORTANT:** GDPR webhooks must be configured manually in the Shopify Partner Dashboard, NOT in `shopify.app.toml`.
+GDPR webhooks are configured in `shopify.app.toml` using `compliance_topics` (NOT regular `topics`):
 
-#### Steps to configure in Partner Dashboard:
-1. Go to [Shopify Partners](https://partners.shopify.com/)
-2. Select your app
-3. Navigate to: **App setup** → **Webhooks** → **GDPR mandatory webhooks**
-4. Add the following endpoints (they are already implemented in the code):
-   - **Customer data request**: `https://your-app-url.com/webhooks/customers/data_request`
-   - **Customer data erasure**: `https://your-app-url.com/webhooks/customers/redact`
-   - **Shop data erasure**: `https://your-app-url.com/webhooks/shop/redact`
+```toml
+[[webhooks.subscriptions]]
+compliance_topics = ["customers/data_request"]
+uri = "/webhooks/customers/data_request"
+
+[[webhooks.subscriptions]]
+compliance_topics = ["customers/redact"]
+uri = "/webhooks/customers/redact"
+
+[[webhooks.subscriptions]]
+compliance_topics = ["shop/redact"]
+uri = "/webhooks/shop/redact"
+```
+
+**Key differences from regular webhooks:**
+- Use `compliance_topics` instead of `topics`
+- Each compliance topic has its own dedicated URI endpoint
+- Automatically registered and verified by Shopify during app review
 
 All webhook handlers automatically verify HMAC signatures for security.
 
@@ -222,6 +232,26 @@ node scripts/test-gdpr-webhook.js data_request
 - `app/lib/gdpr.server.js` - GDPR helper functions
 - `app/routes/app.gdpr-test.jsx` - Testing UI (dev only)
 - `GDPR-TESTING.md` - Complete testing guide
+
+## 📡 REST to GraphQL Migration
+
+**IMPORTANT:** This app uses GraphQL API exclusively. REST Admin API for products/variants is deprecated and will be unsupported after 2025-04-01.
+
+### GraphQL Configuration
+- API version: `2025-01` (defined in `shopify.server.js`)
+- `removeRest: true` flag prevents accidental REST API usage
+- All product, collection, shop, and shipping queries use GraphQL
+
+### Key Migrations Completed
+- ✅ Product details: `GET /products/{id}.json` → GraphQL `product(id:)` query
+- ✅ Collections: `GET /collections.json?product_id=` → GraphQL `inCollections` field
+- ✅ Shop info: `GET /shop.json` → GraphQL `shop` query
+- ✅ Shipping zones: `GET /shipping_zones.json` → GraphQL `deliveryProfiles` query
+
+### Files Using GraphQL
+- `app/routes/api.public.questions.js` - Public storefront API
+- `app/routes/app.questions.new.jsx` - Admin question creation
+- `app/lib/store-context.server.js` - Store context for AI
 
 ## 🌐 Language & Conventions
 

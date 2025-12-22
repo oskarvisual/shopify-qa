@@ -7,8 +7,20 @@ import prisma from "../db.server";
 const GET_PRODUCT_DETAILS_QUERY = `
   query getProductDetails($id: ID!) {
     product(id: $id) {
+      handle
+      title
       productType
       tags
+      inCollections(first: 10) {
+        edges {
+          node {
+            title
+          }
+        }
+      }
+    }
+    shop {
+      name
     }
   }
 `;
@@ -93,57 +105,39 @@ export async function action({ request }) {
       });
 
       if (session?.accessToken) {
-        const productResponse = await fetch(`https://${shop}/admin/api/2023-10/products/${productId}.json`, {
+        const graphqlResponse = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
+          method: "POST",
           headers: {
             "X-Shopify-Access-Token": session.accessToken,
             "Content-Type": "application/json",
           },
+          body: JSON.stringify({
+            query: GET_PRODUCT_DETAILS_QUERY,
+            variables: { id: `gid://shopify/Product/${productId}` },
+          }),
         });
 
-        if (productResponse.ok) {
-          const productData = await productResponse.json();
-          if (productData.product) {
-            productType = productData.product.product_type;
-            productTags = productData.product.tags || null;
-            productHandle = productData.product.handle || null;
-            productName = productData.product.title || null;
+        if (graphqlResponse.ok) {
+          const responseData = await graphqlResponse.json();
+          const product = responseData.data?.product;
+          storeName = responseData.data?.shop?.name || null;
 
-            const collectionsResponse = await fetch(`https://${shop}/admin/api/2023-10/collections.json?product_id=${productId}`, {
-              headers: {
-                "X-Shopify-Access-Token": session.accessToken,
-                "Content-Type": "application/json",
-              },
-            });
+          if (product) {
+            productType = product.productType;
+            productTags = product.tags?.join(', ') || null;
+            productHandle = product.handle || null;
+            productName = product.title || null;
 
-            if (collectionsResponse.ok) {
-              const collectionsData = await collectionsResponse.json();
-              const mainCollection = collectionsData.collections?.find(
-                (collection) => collection.title !== "All" && !collection.title.toLowerCase().includes("automated")
-              );
+            // Get the first non-"All" collection as the category
+            const collections = product.inCollections?.edges || [];
+            const mainCollection = collections.find(
+              (edge) => edge.node.title !== "All" && !edge.node.title.toLowerCase().includes("automated")
+            );
 
-              if (mainCollection) {
-                productCategory = mainCollection.title;
-              }
+            if (mainCollection) {
+              productCategory = mainCollection.node.title;
             } else if (productType) {
               productCategory = productType.charAt(0).toUpperCase() + productType.slice(1);
-            }
-          }
-
-          if (!storeName) {
-            try {
-              const shopResponse = await fetch(`https://${shop}/admin/api/2023-10/shop.json`, {
-                headers: {
-                  "X-Shopify-Access-Token": session.accessToken,
-                  "Content-Type": "application/json",
-                },
-              });
-
-              if (shopResponse.ok) {
-                const shopData = await shopResponse.json();
-                storeName = shopData.shop?.name || null;
-              }
-            } catch (shopError) {
-              console.warn("Failed to fetch shop details:", shopError.message);
             }
           }
         }
