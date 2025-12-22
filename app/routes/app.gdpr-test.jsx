@@ -14,17 +14,9 @@ import {
   List,
 } from "@shopify/polaris";
 import { useState } from "react";
-import { authenticate } from "../shopify.server";
-import {
-  gatherCustomerData,
-  logGdprRequest,
-  updateGdprRequestStatus,
-  sendCustomerDataByEmail,
-  formatCustomerDataAsJson,
-} from "../lib/gdpr.server";
-import prisma from "../db.server";
 
 export const loader = async ({ request }) => {
+  const { authenticate } = await import("../shopify.server");
   await authenticate.admin(request);
 
   // SECURITY: Only allow access in development mode
@@ -39,6 +31,16 @@ export const loader = async ({ request }) => {
 };
 
 export const action = async ({ request }) => {
+  // Import server-only modules dynamically
+  const { authenticate } = await import("../shopify.server");
+  const {
+    gatherCustomerData,
+    logGdprRequest,
+    updateGdprRequestStatus,
+    sendCustomerDataByEmail,
+  } = await import("../lib/gdpr.server");
+  const prisma = (await import("../db.server")).default;
+
   const { session } = await authenticate.admin(request);
 
   // SECURITY: Only allow in development mode
