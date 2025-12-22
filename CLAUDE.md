@@ -178,6 +178,40 @@ shopify app dev
 Una vez que aparezca la URL del túnel, acceder desde el Admin de Shopify.
 
 
+## 🔒 GDPR Webhooks (Mandatory for Shopify Apps)
+
+The app implements three mandatory GDPR webhooks for compliance:
+
+### Webhooks Implemented
+- `customers/data_request` - Gathers and sends customer data via email
+- `customers/redact` - Anonymizes customer personal data
+- `shop/redact` - Deletes all shop data after uninstall
+
+### Configuration
+Webhooks are registered in `shopify.app.toml` and automatically verified with HMAC signatures.
+
+### Testing (Development Only)
+```bash
+# Create test data
+node scripts/seed-test-data.js
+
+# Access test UI (development only)
+# Go to your app → /gdpr-test
+
+# Or use CLI script
+node scripts/test-gdpr-webhook.js data_request
+```
+
+**IMPORTANT:** All testing tools are protected and only work when `NODE_ENV` is NOT set to `production`. See `GDPR-TESTING.md` for complete documentation.
+
+### Files
+- `app/routes/webhooks.customers.data_request.jsx` - Data request handler
+- `app/routes/webhooks.customers.redact.jsx` - Customer redaction
+- `app/routes/webhooks.shop.redact.jsx` - Shop redaction
+- `app/lib/gdpr.server.js` - GDPR helper functions
+- `app/routes/app.gdpr-test.jsx` - Testing UI (dev only)
+- `GDPR-TESTING.md` - Complete testing guide
+
 ## 🌐 Language & Conventions
 
 -   **Code and Database**: All code, comments, file content, and database entries must be written in English.

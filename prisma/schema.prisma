@@ -66,7 +66,6 @@ model Answer {
 
   @@index([shop, questionId])
   @@index([questionId])
-  @@unique([shop, questionId, answer(length: 255)])
 }
 
 model VoteLog {
@@ -176,4 +175,47 @@ model AiFeedback {
 
   @@unique([aiLogId, adminUserId])
   @@index([aiLogId])
+}
+
+model GdprRequest {
+  id             String    @id @default(cuid())
+  shop           String
+  requestType    String
+  customerEmail  String?
+  customerId     String?
+  orderId        String?
+  payload        String?   @db.LongText
+  status         String    @default("pending")
+  processedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([shop, customerEmail])
+  @@index([requestType, status])
+}
+
+model Settings {
+  id        String   @id @default(cuid())
+  shop      String   @unique
+  data      String   @db.LongText
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AutomationLog {
+  id          String    @id @default(cuid())
+  shop        String
+  type        String
+  topic       String?
+  target      String?
+  payload     String?   @db.LongText
+  response    String?   @db.LongText
+  statusCode  Int?
+  success     Boolean   @default(false)
+  error       String?   @db.Text
+  meta        String?   @db.LongText
+  createdAt   DateTime  @default(now())
+
+  @@index([shop, type])
+  @@index([createdAt])
 }
