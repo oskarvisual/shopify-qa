@@ -1,8 +1,8 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "3064ddc918220795fa21739de76542f5"
-name = "product-questions-and-answers"
-application_url = "https://shopify-qa.orivisdev.shop/"
+name = "AI Product Questions & Answers"
+application_url = "https://app-qa.orivisdev.shop/"
 embedded = true
 handle = "product-questions-and-answers-2"
 
@@ -28,14 +28,14 @@ scopes = "write_products,read_products"
 
 [auth]
 redirect_urls = [
-  "https://shopify-qa.orivisdev.shop/api/auth",
-  "https://shopify-qa.orivisdev.shop/api/auth/callback"
+  "https://app-qa.orivisdev.shop/api/auth",
+  "https://app-qa.orivisdev.shop/api/auth/callback"
 ]
 
 [pos]
 embedded = false
 
 [app_proxy]
-url = "https://shopify-qa.orivisdev.shop/"
+url = "https://app-qa.orivisdev.shop/"
 prefix = "apps"
 subpath = "a"
