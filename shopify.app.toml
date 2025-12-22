@@ -20,18 +20,8 @@ api_version = "2025-07"
   topics = [ "app/uninstalled" ]
   uri = "/webhooks/app/uninstalled"
 
-  # GDPR Mandatory Webhooks
-  [[webhooks.subscriptions]]
-  topics = [ "customers/data_request" ]
-  uri = "/webhooks/customers/data_request"
-
-  [[webhooks.subscriptions]]
-  topics = [ "customers/redact" ]
-  uri = "/webhooks/customers/redact"
-
-  [[webhooks.subscriptions]]
-  topics = [ "shop/redact" ]
-  uri = "/webhooks/shop/redact"
+  # Note: GDPR webhooks (customers/data_request, customers/redact, shop/redact)
+  # must be configured manually in the Shopify Partner Dashboard, not in this file
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes

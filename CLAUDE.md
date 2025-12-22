@@ -188,7 +188,18 @@ The app implements three mandatory GDPR webhooks for compliance:
 - `shop/redact` - Deletes all shop data after uninstall
 
 ### Configuration
-Webhooks are registered in `shopify.app.toml` and automatically verified with HMAC signatures.
+**IMPORTANT:** GDPR webhooks must be configured manually in the Shopify Partner Dashboard, NOT in `shopify.app.toml`.
+
+#### Steps to configure in Partner Dashboard:
+1. Go to [Shopify Partners](https://partners.shopify.com/)
+2. Select your app
+3. Navigate to: **App setup** → **Webhooks** → **GDPR mandatory webhooks**
+4. Add the following endpoints (they are already implemented in the code):
+   - **Customer data request**: `https://your-app-url.com/webhooks/customers/data_request`
+   - **Customer data erasure**: `https://your-app-url.com/webhooks/customers/redact`
+   - **Shop data erasure**: `https://your-app-url.com/webhooks/shop/redact`
+
+All webhook handlers automatically verify HMAC signatures for security.
 
 ### Testing (Development Only)
 ```bash
