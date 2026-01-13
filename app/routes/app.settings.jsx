@@ -499,6 +499,19 @@ export default function SettingsPage() {
             </BlockStack>
           </Layout.Section>
 
+          {/* Setup Guide Banner */}
+          <Layout.Section>
+            <Banner
+              title="Need help installing the app?"
+              tone="info"
+              action={{ content: "View Setup Guide", url: "/app/setup" }}
+            >
+              <p>
+                Follow our step-by-step guide to add Q&A blocks to your product pages.
+              </p>
+            </Banner>
+          </Layout.Section>
+
           <Layout.Section>
             <Card>
               <BlockStack gap="500">

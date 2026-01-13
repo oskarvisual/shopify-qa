@@ -195,11 +195,12 @@ model GdprRequest {
 }
 
 model Settings {
-  id        String   @id @default(cuid())
-  shop      String   @unique
-  data      String   @db.LongText
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  shop         String   @unique
+  data         String   @db.LongText
+  hasSeenSetup Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model AutomationLog {

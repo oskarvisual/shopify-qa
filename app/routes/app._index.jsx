@@ -1,4 +1,4 @@
-import { json } from "@remix-run/node";
+import { json, redirect } from "@remix-run/node";
 import { useLoaderData, Link, useNavigate } from "@remix-run/react";
 import { useState } from "react";
 import {
@@ -12,6 +12,8 @@ import {
   Link as PolarisLink,
   Modal,
   Thumbnail,
+  Banner,
+  Button,
 } from "@shopify/polaris";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 import { authenticate } from "../shopify.server";
@@ -39,6 +41,27 @@ export const loader = async ({ request }) => {
   const planContext = await getSubscriptionPlanContext({ shop, sessionPlan: subscriptionPlan });
   const includeAdvancedMetrics = planHasFeature(planContext.features, PlanFeature.DASHBOARD_ENHANCED);
   const includeAiMetrics = planHasFeature(planContext.features, PlanFeature.DASHBOARD_AI_METRICS);
+
+  // Check if this is the first time (redirect to setup)
+  let settings = await prisma.settings.findUnique({
+    where: { shop },
+  });
+
+  if (!settings) {
+    settings = await prisma.settings.create({
+      data: {
+        shop,
+        data: "{}",
+        hasSeenSetup: false,
+      },
+    });
+  }
+
+  // Redirect to setup page on first install
+  if (!settings.hasSeenSetup) {
+    const url = new URL(request.url);
+    return redirect("/app/setup?first_time=true");
+  }
 
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -256,6 +279,20 @@ export default function DashboardPage() {
     <Page title="Dashboard" primaryAction={{ content: "Add Question", onAction: () => navigate("/app/questions/new") }} secondaryActions={[{ content: "View All Questions", onAction: () => navigate("/app/questions-list") }]}>
       {modalContent && <Modal open onClose={() => setModalContent(null)} title="Log Details"><Modal.Section>{modalContent}</Modal.Section></Modal>}
       <Layout>
+        {/* Setup Guide Banner */}
+        <Layout.Section>
+          <Banner
+            title="Need help setting up?"
+            tone="info"
+            action={{ content: "View Setup Guide", url: "/app/setup" }}
+            onDismiss={() => {}}
+          >
+            <p>
+              Learn how to add Q&A blocks to your product pages with our step-by-step setup guide.
+            </p>
+          </Banner>
+        </Layout.Section>
+
         <Layout.Section>
           <Grid columns={{ xs: 1, sm: 2, md: 3, lg: 5, xl: 5 }} gap="400">
             <Card><BlockStack gap="200"><Text as="h2" variant="headingMd">Published</Text><Text as="p" variant="headingXl">{stats.publishedQuestionCount}</Text></BlockStack></Card>
