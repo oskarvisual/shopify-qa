@@ -109,6 +109,17 @@ export const action = async ({ request }) => {
   const error = data?.data?.appSubscriptionCreate?.userErrors?.[0]?.message;
   const confirmationUrl = data?.data?.appSubscriptionCreate?.confirmationUrl;
 
+  // Check for Managed Pricing error
+  if (error && error.includes("Managed Pricing")) {
+    console.warn("[BILLING] App is configured for Managed Pricing - billing is handled by Shopify", { error, data });
+
+    // Redirect to a special flow that explains Managed Pricing
+    const managedPricingUrl = new URL("/app/billing/confirm", appUrl);
+    managedPricingUrl.searchParams.set("plan", requestedPlan);
+    managedPricingUrl.searchParams.set("managed_pricing", "true");
+    return redirect(managedPricingUrl.toString());
+  }
+
   if (error || !confirmationUrl) {
     console.error("[BILLING] Failed to create app subscription", { error, data });
     return json({ error: error || "Unable to create subscription" }, { status: 500 });

@@ -24,10 +24,12 @@ export const loader = async ({ request }) => {
   const url = new URL(request.url);
   const planParam = normalizePlan(url.searchParams.get("plan"));
   const isMock = url.searchParams.get("mock") === "true";
+  const isManagedPricing = url.searchParams.get("managed_pricing") === "true";
 
   console.log("[BILLING CONFIRM] Starting confirmation", {
     plan: planParam,
     isMock,
+    isManagedPricing,
     url: url.toString(),
   });
 
@@ -40,6 +42,12 @@ export const loader = async ({ request }) => {
   if (!billingPlan) {
     console.warn("[BILLING CONFIRM] No billing plan found for:", planParam);
     return redirect("/app/settings?upgrade=invalid");
+  }
+
+  // Handle Managed Pricing apps
+  if (isManagedPricing) {
+    console.log("[BILLING CONFIRM] Managed Pricing detected - billing handled by Shopify");
+    return redirect(`/app/settings?upgrade=managed_pricing&plan=${planParam}`);
   }
 
   const { session, admin } = await authenticate.admin(request);

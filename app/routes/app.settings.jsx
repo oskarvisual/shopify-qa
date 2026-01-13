@@ -32,6 +32,11 @@ export const loader = async ({ request }) => {
   const planContext = await getSubscriptionPlanContext({ shop, sessionPlan: subscriptionPlan });
   const planFeatures = planContext.features;
 
+  // Get upgrade status from URL
+  const url = new URL(request.url);
+  const upgradeStatus = url.searchParams.get("upgrade");
+  const upgradePlan = url.searchParams.get("plan");
+
   const [webhookSettings, emailSettings, aiSettings, helpConfigs, translationConfig] = await Promise.all([
     prisma.webhookSetting.findUnique({ where: { shop } }),
     prisma.emailSetting.findUnique({ where: { shop } }),
@@ -122,6 +127,8 @@ export const loader = async ({ request }) => {
     helpLinks,
     translationSettings,
     planFeatures,
+    upgradeStatus,
+    upgradePlan,
   });
 };
 
@@ -304,7 +311,7 @@ export const action = async ({ request }) => {
 };
 
 export default function SettingsPage() {
-  const { webhookSettings, emailSettings, aiSettings, helpLinks, translationSettings } = useLoaderData();
+  const { webhookSettings, emailSettings, aiSettings, helpLinks, translationSettings, upgradeStatus, upgradePlan } = useLoaderData();
   const actionData = useActionData();
   const emailTestFetcher = useFetcher();
   const billingFetcher = useFetcher();
@@ -488,6 +495,14 @@ export default function SettingsPage() {
     </Banner>
   );
 
+  const managedPricingBanner = upgradeStatus === "managed_pricing" && (
+    <Banner title="Billing Managed by Shopify" tone="info">
+      <p>
+        This app uses Shopify-managed pricing. Your plan will be automatically updated and billing is handled directly by Shopify through your Shopify subscription. No further action is needed on your part.
+      </p>
+    </Banner>
+  );
+
   return (
     <Page title="Settings">
       <Form method="post">
@@ -496,6 +511,7 @@ export default function SettingsPage() {
             <BlockStack gap="500">
               {successBanner}
               {errorBanner}
+              {managedPricingBanner}
             </BlockStack>
           </Layout.Section>
 
