@@ -42,7 +42,7 @@ export const loader = async ({ request }) => {
   const includeAdvancedMetrics = planHasFeature(planContext.features, PlanFeature.DASHBOARD_ENHANCED);
   const includeAiMetrics = planHasFeature(planContext.features, PlanFeature.DASHBOARD_AI_METRICS);
 
-  // Check if this is the first time (redirect to setup)
+  // Check if this is the first time (for showing setup banner)
   let settings = await prisma.settings.findUnique({
     where: { shop },
   });
@@ -57,11 +57,7 @@ export const loader = async ({ request }) => {
     });
   }
 
-  // Redirect to setup page on first install
-  if (!settings.hasSeenSetup) {
-    const url = new URL(request.url);
-    return redirect("/app/setup?first_time=true");
-  }
+  const showSetupBanner = !settings.hasSeenSetup;
 
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -208,11 +204,12 @@ export const loader = async ({ request }) => {
     latestUnansweredAi,
     productMap,
     aiActivityChartData,
+    showSetupBanner,
   });
 };
 
 export default function DashboardPage() {
-  const { shop, stats, activityChartData, latestQuestions, topProductsByQuestions, topProductsByVotes, topCategories, topProductTypes, activeAdmins, latestUnanswered, tagDistribution, votesByDay, topQuestionsByVotes: topQuestionsByVotesList, latestPositiveAi, latestUnansweredAi, productMap, aiActivityChartData } = useLoaderData();
+  const { shop, stats, activityChartData, latestQuestions, topProductsByQuestions, topProductsByVotes, topCategories, topProductTypes, activeAdmins, latestUnanswered, tagDistribution, votesByDay, topQuestionsByVotes: topQuestionsByVotesList, latestPositiveAi, latestUnansweredAi, productMap, aiActivityChartData, showSetupBanner } = useLoaderData();
   const navigate = useNavigate();
   const [modalContent, setModalContent] = useState(null);
   const showAdvancedMetrics = usePlanFeature(PlanFeature.DASHBOARD_ENHANCED);
@@ -280,18 +277,32 @@ export default function DashboardPage() {
       {modalContent && <Modal open onClose={() => setModalContent(null)} title="Log Details"><Modal.Section>{modalContent}</Modal.Section></Modal>}
       <Layout>
         {/* Setup Guide Banner */}
-        <Layout.Section>
-          <Banner
-            title="Need help setting up?"
-            tone="info"
-            action={{ content: "View Setup Guide", url: "/app/setup" }}
-            onDismiss={() => {}}
-          >
-            <p>
-              Learn how to add Q&A blocks to your product pages with our step-by-step setup guide.
-            </p>
-          </Banner>
-        </Layout.Section>
+        {showSetupBanner ? (
+          <Layout.Section>
+            <Banner
+              title="Welcome! Complete your setup"
+              tone="success"
+              action={{ content: "Start Setup Guide", url: "/app/setup?first_time=true" }}
+            >
+              <p>
+                Get started by installing the Q&A blocks on your product pages. Follow our step-by-step guide to complete the setup in just 5 minutes.
+              </p>
+            </Banner>
+          </Layout.Section>
+        ) : (
+          <Layout.Section>
+            <Banner
+              title="Need help setting up?"
+              tone="info"
+              action={{ content: "View Setup Guide", url: "/app/setup" }}
+              onDismiss={() => {}}
+            >
+              <p>
+                Learn how to add Q&A blocks to your product pages with our step-by-step setup guide.
+              </p>
+            </Banner>
+          </Layout.Section>
+        )}
 
         <Layout.Section>
           <Grid columns={{ xs: 1, sm: 2, md: 3, lg: 5, xl: 5 }} gap="400">
