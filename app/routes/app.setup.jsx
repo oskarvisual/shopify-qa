@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useNavigate, useSubmit } from "@remix-run/react";
 import {
@@ -15,6 +15,7 @@ import {
   Badge,
   Box,
   Icon,
+  VideoThumbnail,
 } from "@shopify/polaris";
 import {
   CheckCircleIcon,
@@ -84,7 +85,6 @@ export default function SetupPage() {
     step1: false,
     step2: false,
     step3: false,
-    step4: false,
   });
 
   const toggleStep = useCallback((step) => {
@@ -100,11 +100,9 @@ export default function SetupPage() {
     submit(formData, { method: "post" });
   }, [submit]);
 
-  // Deep links for theme editor
+  // Deep link to product template editor
   const deepLinkBase = `https://${shop}/admin/themes/current/editor`;
-  const displayBlockDeepLink = `${deepLinkBase}?context=apps&template=product&activateAppId=${clientId}/qa_questions_display`;
-  const askFormDeepLink = `${deepLinkBase}?context=apps&template=product&activateAppId=${clientId}/qa_ask_form`;
-  const themeEditorApps = `${deepLinkBase}?context=apps`;
+  const productTemplateLink = `${deepLinkBase}?template=product&addAppBlockId=${clientId}/qa_questions_display`;
 
   const allStepsCompleted = Object.values(completedSteps).every((step) => step);
 
@@ -147,8 +145,8 @@ export default function SetupPage() {
             tone="info"
           >
             <p>
-              This guide will help you install and configure the Q&A blocks on
-              your product pages. The installation takes about 5 minutes.
+              This guide will help you install and configure the Q&A sections on
+              your product pages. The installation takes about 3-5 minutes.
             </p>
           </Banner>
         </Layout.Section>
@@ -162,7 +160,7 @@ export default function SetupPage() {
                   Setup Progress
                 </Text>
                 <Badge tone={allStepsCompleted ? "success" : "info"}>
-                  {Object.values(completedSteps).filter(Boolean).length} of 4
+                  {Object.values(completedSteps).filter(Boolean).length} of 3
                   completed
                 </Badge>
               </InlineStack>
@@ -180,7 +178,34 @@ export default function SetupPage() {
           </Card>
         </Layout.Section>
 
-        {/* Step 1: Enable App Embed */}
+        {/* Video Tutorial */}
+        <Layout.Section>
+          <Card>
+            <BlockStack gap="400">
+              <Text variant="headingMd" as="h2">
+                📹 Video Tutorial
+              </Text>
+              <Divider />
+              <Text as="p">
+                Watch our step-by-step video guide for visual instructions on
+                installing and configuring the Q&A app.
+              </Text>
+
+              <Box>
+                <Button
+                  url="https://www.loom.com/share/3a39bf24b7b74e2caadfad2bf855f884"
+                  target="_blank"
+                  icon={ExternalIcon}
+                  variant="primary"
+                >
+                  Watch Video Tutorial
+                </Button>
+              </Box>
+            </BlockStack>
+          </Card>
+        </Layout.Section>
+
+        {/* Step 1: Access Product Template Editor */}
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
@@ -191,7 +216,7 @@ export default function SetupPage() {
                     tone={completedSteps.step1 ? "success" : "base"}
                   />
                   <Text variant="headingMd" as="h3">
-                    Step 1: Enable the App Embed
+                    Step 1: Open the Product Page Template Editor
                   </Text>
                 </InlineStack>
                 <Button
@@ -206,8 +231,7 @@ export default function SetupPage() {
 
               <BlockStack gap="300">
                 <Text as="p">
-                  First, you need to enable the app embed to load the necessary
-                  scripts and styles for the Q&A functionality.
+                  First, you need to open your theme editor specifically for the <strong>Product page template</strong>, since the Q&A sections should only appear on product pages.
                 </Text>
 
                 <Box paddingBlockStart="200">
@@ -217,17 +241,13 @@ export default function SetupPage() {
                     </Text>
                     <List type="number">
                       <List.Item>
-                        Click the button below to open your theme editor
+                        Click the button below to open your product template in the theme editor
                       </List.Item>
                       <List.Item>
-                        In the left sidebar, click on <strong>"App embeds"</strong>
+                        In the left sidebar, you'll see the product page layout
                       </List.Item>
                       <List.Item>
-                        Find <strong>"AI Product Questions & Answers"</strong> and
-                        toggle it <strong>ON</strong>
-                      </List.Item>
-                      <List.Item>
-                        Click <strong>"Save"</strong> in the top-right corner
+                        You're now ready to add Q&A sections to your product page
                       </List.Item>
                     </List>
                   </BlockStack>
@@ -235,19 +255,18 @@ export default function SetupPage() {
 
                 <InlineStack gap="300">
                   <Button
-                    url={themeEditorApps}
+                    url={productTemplateLink}
                     target="_blank"
                     icon={ExternalIcon}
+                    variant="primary"
                   >
-                    Open Theme Editor
+                    Open Product Template Editor
                   </Button>
                 </InlineStack>
 
-                <Banner tone="info">
+                <Banner tone="warning">
                   <p>
-                    <strong>Note:</strong> The app embed must be enabled for the
-                    Q&A blocks to work properly. This loads the JavaScript and CSS
-                    needed for the functionality.
+                    <strong>Important:</strong> Make sure you're editing the <strong>Product</strong> template, not the Home page or other templates. The Q&A sections are designed specifically for product pages.
                   </p>
                 </Banner>
               </BlockStack>
@@ -255,7 +274,7 @@ export default function SetupPage() {
           </Card>
         </Layout.Section>
 
-        {/* Step 2: Add Questions Display Block */}
+        {/* Step 2: Add Questions Display Section */}
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
@@ -266,7 +285,7 @@ export default function SetupPage() {
                     tone={completedSteps.step2 ? "success" : "base"}
                   />
                   <Text variant="headingMd" as="h3">
-                    Step 2: Add the Questions Display Block
+                    Step 2: Add the Questions Display Section
                   </Text>
                 </InlineStack>
                 <Button
@@ -281,7 +300,7 @@ export default function SetupPage() {
 
               <BlockStack gap="300">
                 <Text as="p">
-                  This block displays all existing questions and answers for the
+                  This section displays all existing questions and answers for the
                   current product. Customers can search, vote, and view detailed
                   answers.
                 </Text>
@@ -293,42 +312,30 @@ export default function SetupPage() {
                     </Text>
                     <List type="number">
                       <List.Item>
-                        Click the button below to open the product template in
-                        your theme editor
+                        In the theme editor (left sidebar), scroll down and click <strong>"Add section"</strong>
                       </List.Item>
                       <List.Item>
-                        The <strong>"Q&A Questions Display"</strong> block will be
-                        automatically selected
+                        Click on the <strong>"Apps"</strong> tab at the top
                       </List.Item>
                       <List.Item>
-                        Drag and drop it to your desired location (typically below
-                        the product description)
+                        Find and select <strong>"Q&A Questions Display"</strong>
                       </List.Item>
                       <List.Item>
-                        Customize the settings in the right sidebar (title,
-                        search, styling, etc.)
+                        Position it where you want (typically below the product description)
                       </List.Item>
                       <List.Item>
-                        Click <strong>"Save"</strong>
+                        Customize the settings in the right sidebar (title, search, styling, etc.)
+                      </List.Item>
+                      <List.Item>
+                        Click <strong>"Save"</strong> in the top-right corner
                       </List.Item>
                     </List>
                   </BlockStack>
                 </Box>
 
-                <InlineStack gap="300">
-                  <Button
-                    url={displayBlockDeepLink}
-                    target="_blank"
-                    icon={ExternalIcon}
-                    variant="primary"
-                  >
-                    Add Questions Display Block
-                  </Button>
-                </InlineStack>
-
                 <Banner tone="info">
                   <p>
-                    <strong>Tip:</strong> You can customize the block title,
+                    <strong>Tip:</strong> You can customize the section title,
                     enable/disable search, show/hide the "Ask Question" button,
                     and adjust the visual style (block or separator layout).
                   </p>
@@ -338,7 +345,7 @@ export default function SetupPage() {
           </Card>
         </Layout.Section>
 
-        {/* Step 3: Add Ask Question Form Block */}
+        {/* Step 3: Add Ask Question Form Section */}
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
@@ -349,7 +356,7 @@ export default function SetupPage() {
                     tone={completedSteps.step3 ? "success" : "base"}
                   />
                   <Text variant="headingMd" as="h3">
-                    Step 3: Add the Ask Question Form Block (Optional)
+                    Step 3: Add the Ask Question Form Section (Optional)
                   </Text>
                 </InlineStack>
                 <Button
@@ -364,8 +371,8 @@ export default function SetupPage() {
 
               <BlockStack gap="300">
                 <Text as="p">
-                  This block allows customers to submit new questions. It supports
-                  AI-powered answers (if enabled) and can be displayed inline or
+                  This section allows customers to submit new questions. It supports
+                  AI-powered answers (if enabled on Ultra plan) and can be displayed inline or
                   as a modal.
                 </Text>
 
@@ -376,7 +383,13 @@ export default function SetupPage() {
                     </Text>
                     <List type="number">
                       <List.Item>
-                        Click the button below to add the form block
+                        In the theme editor, click <strong>"Add section"</strong> again
+                      </List.Item>
+                      <List.Item>
+                        Go to the <strong>"Apps"</strong> tab
+                      </List.Item>
+                      <List.Item>
+                        Select <strong>"Q&A Ask Question Form"</strong>
                       </List.Item>
                       <List.Item>
                         Position it where you want customers to ask questions
@@ -393,92 +406,12 @@ export default function SetupPage() {
                   </BlockStack>
                 </Box>
 
-                <InlineStack gap="300">
-                  <Button
-                    url={askFormDeepLink}
-                    target="_blank"
-                    icon={ExternalIcon}
-                    variant="primary"
-                  >
-                    Add Ask Question Form
-                  </Button>
-                </InlineStack>
-
                 <Banner>
                   <p>
-                    <strong>Note:</strong> This block is optional. If you don't
-                    add it, the Questions Display block includes a built-in "Ask
+                    <strong>Note:</strong> This section is optional. If you don't
+                    add it, the Questions Display section includes a built-in "Ask
                     Question" button that opens a modal with the same
                     functionality.
-                  </p>
-                </Banner>
-              </BlockStack>
-            </BlockStack>
-          </Card>
-        </Layout.Section>
-
-        {/* Step 4: Preview and Test */}
-        <Layout.Section>
-          <Card>
-            <BlockStack gap="400">
-              <InlineStack align="space-between" blockAlign="center">
-                <InlineStack gap="200" blockAlign="center">
-                  <Icon
-                    source={completedSteps.step4 ? CheckCircleIcon : QuestionCircleIcon}
-                    tone={completedSteps.step4 ? "success" : "base"}
-                  />
-                  <Text variant="headingMd" as="h3">
-                    Step 4: Preview and Test
-                  </Text>
-                </InlineStack>
-                <Button
-                  onClick={() => toggleStep("step4")}
-                  variant={completedSteps.step4 ? "primary" : "secondary"}
-                >
-                  {completedSteps.step4 ? "Completed" : "Mark as done"}
-                </Button>
-              </InlineStack>
-
-              <Divider />
-
-              <BlockStack gap="300">
-                <Text as="p">
-                  Test your installation to make sure everything works correctly.
-                </Text>
-
-                <Box paddingBlockStart="200">
-                  <BlockStack gap="200">
-                    <Text variant="headingSm" as="h4">
-                      What to test:
-                    </Text>
-                    <List type="bullet">
-                      <List.Item>
-                        Visit a product page and check if the Q&A blocks are
-                        visible
-                      </List.Item>
-                      <List.Item>
-                        Try submitting a test question (use a real email to
-                        receive notifications)
-                      </List.Item>
-                      <List.Item>
-                        Test the search functionality (if enabled)
-                      </List.Item>
-                      <List.Item>Test voting on questions</List.Item>
-                      <List.Item>
-                        If using AI features, test the AI answer flow
-                      </List.Item>
-                      <List.Item>
-                        Check the admin panel to see the question appear
-                      </List.Item>
-                    </List>
-                  </BlockStack>
-                </Box>
-
-                <Banner tone="success">
-                  <p>
-                    <strong>Success!</strong> Once you've verified everything
-                    works, your Q&A app is fully installed and ready for
-                    customers to use.
                   </p>
                 </Banner>
               </BlockStack>
@@ -497,14 +430,14 @@ export default function SetupPage() {
 
               <BlockStack gap="300">
                 <Text variant="headingSm" as="h3">
-                  Block Customization Options
+                  Section Customization Options
                 </Text>
 
                 <Box paddingBlockStart="200">
                   <BlockStack gap="300">
                     <div>
                       <Text as="p" fontWeight="semibold">
-                        Questions Display Block:
+                        Questions Display Section:
                       </Text>
                       <List type="bullet">
                         <List.Item>
@@ -531,7 +464,7 @@ export default function SetupPage() {
 
                     <div>
                       <Text as="p" fontWeight="semibold">
-                        Ask Question Form Block:
+                        Ask Question Form Section:
                       </Text>
                       <List type="bullet">
                         <List.Item>
@@ -540,7 +473,7 @@ export default function SetupPage() {
                         </List.Item>
                         <List.Item>
                           <strong>AI Features:</strong> Enable AI-powered instant
-                          answers
+                          answers (Ultra plan)
                         </List.Item>
                         <List.Item>
                           <strong>Character Limit:</strong> Set max question
@@ -569,12 +502,11 @@ export default function SetupPage() {
 
                 <List type="bullet">
                   <List.Item>
-                    <strong>Blocks not showing?</strong> Make sure the app embed
-                    is enabled (Step 1)
+                    <strong>Sections not showing?</strong> Make sure you added them to the <strong>Product</strong> template, not other pages
                   </List.Item>
                   <List.Item>
                     <strong>Styling issues?</strong> Check your theme's CSS for
-                    conflicts. You can customize block colors in the theme
+                    conflicts. You can customize section colors in the theme
                     editor.
                   </List.Item>
                   <List.Item>
@@ -584,10 +516,6 @@ export default function SetupPage() {
                   <List.Item>
                     <strong>Questions not appearing?</strong> Check if questions
                     are published in the admin panel
-                  </List.Item>
-                  <List.Item>
-                    <strong>Need help?</strong> Contact support with your shop
-                    domain and a description of the issue
                   </List.Item>
                 </List>
               </BlockStack>
@@ -618,36 +546,6 @@ export default function SetupPage() {
           </Card>
         </Layout.Section>
 
-        {/* Video Tutorial (Optional) */}
-        <Layout.Section>
-          <Card>
-            <BlockStack gap="400">
-              <Text variant="headingMd" as="h2">
-                Video Tutorial
-              </Text>
-              <Divider />
-              <Text as="p">
-                Watch our step-by-step video guide for visual instructions on
-                installing and configuring the Q&A app.
-              </Text>
-
-              {/* Placeholder for video - replace with actual video URL */}
-              <Box
-                background="bg-surface-secondary"
-                padding="800"
-                borderRadius="200"
-              >
-                <InlineStack align="center" blockAlign="center">
-                  <Text as="p" tone="subdued">
-                    [Video tutorial coming soon - Add your YouTube/Vimeo embed
-                    here]
-                  </Text>
-                </InlineStack>
-              </Box>
-            </BlockStack>
-          </Card>
-        </Layout.Section>
-
         {/* Help Section */}
         <Layout.Section>
           <Card>
@@ -662,10 +560,18 @@ export default function SetupPage() {
               </Text>
 
               <InlineStack gap="300">
-                <Button url="mailto:support@yourdomain.com">
+                <Button
+                  url="https://orivisdev.shop/contact/"
+                  target="_blank"
+                  icon={ExternalIcon}
+                >
                   Contact Support
                 </Button>
-                <Button url="https://yourdomain.com/docs" target="_blank">
+                <Button
+                  url="https://orivisdev.shop/app/ai-product-questions-answers/"
+                  target="_blank"
+                  icon={ExternalIcon}
+                >
                   View Documentation
                 </Button>
               </InlineStack>
