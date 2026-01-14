@@ -405,9 +405,13 @@ export default function DashboardPage() {
             <Banner
               title="Plan Updated Successfully!"
               tone="success"
+              action={{
+                content: "Refresh to See New Features",
+                onAction: () => window.location.reload(),
+              }}
             >
               <p>
-                Your subscription has been updated to <strong>{updatedPlanName?.toUpperCase()}</strong>. All features are now available!
+                Your subscription has been updated to <strong>{updatedPlanName?.toUpperCase()}</strong>. Click the button to refresh and activate all your new features!
               </p>
             </Banner>
           </Layout.Section>
