@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import { json, redirect } from "@remix-run/node";
 import { useLoaderData, useNavigate, useSubmit } from "@remix-run/react";
 import {
@@ -12,14 +12,9 @@ import {
   Banner,
   List,
   Divider,
-  Badge,
   Box,
-  Icon,
-  VideoThumbnail,
 } from "@shopify/polaris";
 import {
-  CheckCircleIcon,
-  QuestionCircleIcon,
   ExternalIcon,
 } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
@@ -81,18 +76,6 @@ export default function SetupPage() {
   const { shop, appHandle, clientId, extensionName, isFirstTime, hasSeenSetup } = useLoaderData();
   const navigate = useNavigate();
   const submit = useSubmit();
-  const [completedSteps, setCompletedSteps] = useState({
-    step1: false,
-    step2: false,
-    step3: false,
-  });
-
-  const toggleStep = useCallback((step) => {
-    setCompletedSteps((prev) => ({
-      ...prev,
-      [step]: !prev[step],
-    }));
-  }, []);
 
   const handleGoToDashboard = useCallback(() => {
     const formData = new FormData();
@@ -103,8 +86,6 @@ export default function SetupPage() {
   // Deep link to product template editor
   const deepLinkBase = `https://${shop}/admin/themes/current/editor`;
   const productTemplateLink = `${deepLinkBase}?template=product&addAppBlockId=${clientId}/qa_questions_display`;
-
-  const allStepsCompleted = Object.values(completedSteps).every((step) => step);
 
   return (
     <Page
@@ -151,32 +132,6 @@ export default function SetupPage() {
           </Banner>
         </Layout.Section>
 
-        {/* Progress Overview */}
-        <Layout.Section>
-          <Card>
-            <BlockStack gap="400">
-              <InlineStack align="space-between" blockAlign="center">
-                <Text variant="headingMd" as="h2">
-                  Setup Progress
-                </Text>
-                <Badge tone={allStepsCompleted ? "success" : "info"}>
-                  {Object.values(completedSteps).filter(Boolean).length} of 3
-                  completed
-                </Badge>
-              </InlineStack>
-
-              {allStepsCompleted && (
-                <Banner tone="success">
-                  <p>
-                    <strong>Great job!</strong> Your Q&A app is now installed
-                    and ready to use. Visit a product page in your store to see
-                    it in action.
-                  </p>
-                </Banner>
-              )}
-            </BlockStack>
-          </Card>
-        </Layout.Section>
 
         {/* Video Tutorial */}
         <Layout.Section>
@@ -209,23 +164,9 @@ export default function SetupPage() {
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
-              <InlineStack align="space-between" blockAlign="center">
-                <InlineStack gap="200" blockAlign="center">
-                  <Icon
-                    source={completedSteps.step1 ? CheckCircleIcon : QuestionCircleIcon}
-                    tone={completedSteps.step1 ? "success" : "base"}
-                  />
-                  <Text variant="headingMd" as="h3">
-                    Step 1: Open the Product Page Template Editor
-                  </Text>
-                </InlineStack>
-                <Button
-                  onClick={() => toggleStep("step1")}
-                  variant={completedSteps.step1 ? "primary" : "secondary"}
-                >
-                  {completedSteps.step1 ? "Completed" : "Mark as done"}
-                </Button>
-              </InlineStack>
+              <Text variant="headingMd" as="h3">
+                Step 1: Open the Product Page Template Editor
+              </Text>
 
               <Divider />
 
@@ -278,23 +219,9 @@ export default function SetupPage() {
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
-              <InlineStack align="space-between" blockAlign="center">
-                <InlineStack gap="200" blockAlign="center">
-                  <Icon
-                    source={completedSteps.step2 ? CheckCircleIcon : QuestionCircleIcon}
-                    tone={completedSteps.step2 ? "success" : "base"}
-                  />
-                  <Text variant="headingMd" as="h3">
-                    Step 2: Add the Questions Display Section
-                  </Text>
-                </InlineStack>
-                <Button
-                  onClick={() => toggleStep("step2")}
-                  variant={completedSteps.step2 ? "primary" : "secondary"}
-                >
-                  {completedSteps.step2 ? "Completed" : "Mark as done"}
-                </Button>
-              </InlineStack>
+              <Text variant="headingMd" as="h3">
+                Step 2: Add the Questions Display Section
+              </Text>
 
               <Divider />
 
@@ -349,23 +276,9 @@ export default function SetupPage() {
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
-              <InlineStack align="space-between" blockAlign="center">
-                <InlineStack gap="200" blockAlign="center">
-                  <Icon
-                    source={completedSteps.step3 ? CheckCircleIcon : QuestionCircleIcon}
-                    tone={completedSteps.step3 ? "success" : "base"}
-                  />
-                  <Text variant="headingMd" as="h3">
-                    Step 3: Add the Ask Question Form Section (Optional)
-                  </Text>
-                </InlineStack>
-                <Button
-                  onClick={() => toggleStep("step3")}
-                  variant={completedSteps.step3 ? "primary" : "secondary"}
-                >
-                  {completedSteps.step3 ? "Completed" : "Mark as done"}
-                </Button>
-              </InlineStack>
+              <Text variant="headingMd" as="h3">
+                Step 3: Add the Ask Question Form Section (Optional)
+              </Text>
 
               <Divider />
 

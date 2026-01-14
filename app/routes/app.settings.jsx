@@ -18,6 +18,7 @@ import {
   Icon,
   Tooltip,
   Collapsible,
+  Modal,
 } from "@shopify/polaris";
 import { QuestionCircleIcon, ChevronDownIcon, ChevronUpIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
@@ -358,6 +359,7 @@ export default function SettingsPage() {
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
   const [showErrorBanner, setShowErrorBanner] = useState(false);
   const [showTestBanner, setShowTestBanner] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false);
 
   const [answerTemplateOpen, setAnswerTemplateOpen] = useState(false);
   const [publishedTemplateOpen, setPublishedTemplateOpen] = useState(false);
@@ -375,9 +377,16 @@ export default function SettingsPage() {
     (targetPlan) => {
       const billingPlan = getBillingPlan(targetPlan);
       if (!billingPlan) return;
-      billingFetcher.submit({ plan: targetPlan }, { method: "post", action: "/app/billing" });
+
+      // Open Shopify billing directly in new tab
+      const shopDomain = shop?.replace('.myshopify.com', '') || '';
+      const shopifyBillingUrl = `https://admin.shopify.com/store/${shopDomain}/charges/product-questions-and-answers-2/pricing_plans`;
+      window.open(shopifyBillingUrl, '_blank');
+
+      // Show sync modal
+      setShowSyncModal(true);
     },
-    [billingFetcher]
+    [shop]
   );
 
   const renderUpgradeBanner = (message, targetPlans) => {
@@ -505,7 +514,7 @@ export default function SettingsPage() {
         <InlineStack gap="200">
           <Button
             url={`https://admin.shopify.com/store/${shop?.replace('.myshopify.com', '') || 'YOUR_STORE'}/charges/product-questions-and-answers-2/pricing_plans`}
-            external
+            target="_blank"
             variant="primary"
           >
             Go to Shopify Billing
@@ -845,6 +854,51 @@ export default function SettingsPage() {
           </Layout.Section>
         </Layout>
       </Form>
+
+      {/* Sync Plan Modal */}
+      <Modal
+        open={showSyncModal}
+        onClose={() => setShowSyncModal(false)}
+        title="Complete Your Upgrade"
+        primaryAction={{
+          content: "Sync My Plan",
+          onAction: () => {
+            window.location.href = '/app/sync-plan';
+          },
+        }}
+        secondaryActions={[
+          {
+            content: "Refresh Page",
+            onAction: () => {
+              window.location.reload();
+            },
+          },
+        ]}
+      >
+        <Modal.Section>
+          <BlockStack gap="300">
+            <Text as="p">
+              A new tab has opened with Shopify's billing page. Please complete your plan upgrade there, then:
+            </Text>
+            <List type="number">
+              <List.Item>
+                Select your desired plan (Pro or Ultra)
+              </List.Item>
+              <List.Item>
+                Confirm the subscription
+              </List.Item>
+              <List.Item>
+                Return here and click "Sync My Plan" to update your features
+              </List.Item>
+            </List>
+            <Banner tone="info">
+              <p>
+                <strong>Note:</strong> If you've already completed the upgrade in Shopify, click "Sync My Plan" to activate your new features immediately.
+              </p>
+            </Banner>
+          </BlockStack>
+        </Modal.Section>
+      </Modal>
     </Page>
   );
 }

@@ -1,5 +1,5 @@
 import { json, redirect } from "@remix-run/node";
-import { useLoaderData, Link, useNavigate } from "@remix-run/react";
+import { useLoaderData, Link, useNavigate, useFetcher } from "@remix-run/react";
 import { useState } from "react";
 import {
   Page,
@@ -208,10 +208,40 @@ export const loader = async ({ request }) => {
   });
 };
 
+export const action = async ({ request }) => {
+  const { session } = await authenticate.admin(request);
+  const formData = await request.formData();
+  const intent = formData.get("intent");
+
+  if (intent === "start_setup") {
+    // Mark as seen setup
+    await prisma.settings.upsert({
+      where: { shop: session.shop },
+      update: { hasSeenSetup: true },
+      create: {
+        shop: session.shop,
+        data: "{}",
+        hasSeenSetup: true,
+      },
+    });
+
+    return redirect("/app/setup?first_time=true");
+  }
+
+  return json({ success: true });
+};
+
 export default function DashboardPage() {
   const { shop, stats, activityChartData, latestQuestions, topProductsByQuestions, topProductsByVotes, topCategories, topProductTypes, activeAdmins, latestUnanswered, tagDistribution, votesByDay, topQuestionsByVotes: topQuestionsByVotesList, latestPositiveAi, latestUnansweredAi, productMap, aiActivityChartData, showSetupBanner } = useLoaderData();
   const navigate = useNavigate();
+  const fetcher = useFetcher();
   const [modalContent, setModalContent] = useState(null);
+
+  const handleStartSetup = () => {
+    const formData = new FormData();
+    formData.append("intent", "start_setup");
+    fetcher.submit(formData, { method: "post" });
+  };
   const showAdvancedMetrics = usePlanFeature(PlanFeature.DASHBOARD_ENHANCED);
   const showAiMetrics = usePlanFeature(PlanFeature.DASHBOARD_AI_METRICS);
 
@@ -282,7 +312,7 @@ export default function DashboardPage() {
             <Banner
               title="Welcome! Complete your setup"
               tone="success"
-              action={{ content: "Start Setup Guide", url: "/app/setup?first_time=true" }}
+              action={{ content: "Start Setup Guide", onAction: handleStartSetup }}
             >
               <p>
                 Get started by installing the Q&A blocks on your product pages. Follow our step-by-step guide to complete the setup in just 5 minutes.
