@@ -135,13 +135,95 @@ export const loader = async ({ request }) => {
   });
 };
 
+const ACTIVE_SUBSCRIPTIONS_QUERY = `
+  query GetActiveSubscriptions {
+    currentAppInstallation {
+      activeSubscriptions {
+        id
+        name
+        status
+        lineItems {
+          plan {
+            pricingDetails {
+              ... on AppRecurringPricing {
+                price {
+                  amount
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
 export const action = async ({ request }) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const { shop, subscriptionPlan } = session;
   const planContext = await getSubscriptionPlanContext({ shop, sessionPlan: subscriptionPlan });
   const planFeatures = planContext.features;
   const formData = await request.formData();
   const intent = formData.get("intent");
+
+  if (intent === "sync-plan") {
+    try {
+      console.log("[SETTINGS SYNC] Syncing plan for shop:", shop);
+
+      // Get active subscriptions from Shopify
+      const response = await admin.graphql(ACTIVE_SUBSCRIPTIONS_QUERY);
+      const data = await response.json();
+
+      const activeSubscriptions = data?.data?.currentAppInstallation?.activeSubscriptions || [];
+      console.log("[SETTINGS SYNC] Active subscriptions:", JSON.stringify(activeSubscriptions, null, 2));
+
+      // Determine the plan based on active subscriptions
+      let detectedPlan = "free";
+
+      if (activeSubscriptions.length > 0) {
+        const subscription = activeSubscriptions[0];
+        const subscriptionName = subscription.name?.toLowerCase() || "";
+
+        // Map subscription name to plan
+        if (subscriptionName.includes("ultra")) {
+          detectedPlan = "ultra";
+        } else if (subscriptionName.includes("pro")) {
+          detectedPlan = "pro";
+        } else {
+          // Try to detect by price
+          const price = parseFloat(
+            subscription.lineItems?.[0]?.plan?.pricingDetails?.price?.amount || "0"
+          );
+
+          if (price >= 40) {
+            detectedPlan = "ultra";
+          } else if (price >= 15) {
+            detectedPlan = "pro";
+          }
+        }
+      }
+
+      const normalizedPlan = detectedPlan;
+      console.log("[SETTINGS SYNC] Detected plan:", normalizedPlan);
+
+      // Save to database
+      await prisma.config.upsert({
+        where: { key: `subscription.plan.${shop}` },
+        update: { value: normalizedPlan },
+        create: { key: `subscription.plan.${shop}`, value: normalizedPlan },
+      });
+
+      console.log("[SETTINGS SYNC] Plan saved to database");
+
+      return json({
+        success: `Plan updated to ${normalizedPlan.toUpperCase()}! Please refresh the page to see your new features.`,
+        plan: normalizedPlan
+      });
+    } catch (error) {
+      console.error("[SETTINGS SYNC] Error syncing plan:", error);
+      return json({ error: "Failed to sync plan. Please try again." }, { status: 500 });
+    }
+  }
 
   if (intent === "test-smtp") {
     return json({ testResult: "Not implemented yet." });
@@ -318,6 +400,7 @@ export default function SettingsPage() {
   const actionData = useActionData();
   const emailTestFetcher = useFetcher();
   const billingFetcher = useFetcher();
+  const syncPlanFetcher = useFetcher();
   const plan = usePlan();
   const canConfigureWebhooks = usePlanFeature(PlanFeature.SETTINGS_WEBHOOKS);
   const canConfigureAi = usePlanFeature(PlanFeature.SETTINGS_AI);
@@ -361,6 +444,7 @@ export default function SettingsPage() {
   const [showErrorBanner, setShowErrorBanner] = useState(false);
   const [showTestBanner, setShowTestBanner] = useState(false);
   const [showSyncModal, setShowSyncModal] = useState(false);
+  const [syncSuccess, setSyncSuccess] = useState(false);
 
   const [answerTemplateOpen, setAnswerTemplateOpen] = useState(false);
   const [publishedTemplateOpen, setPublishedTemplateOpen] = useState(false);
@@ -473,6 +557,22 @@ export default function SettingsPage() {
     if (emailTestFetcher.data) setShowTestBanner(true);
   }, [emailTestFetcher.data]);
 
+  // Handle sync plan response
+  useEffect(() => {
+    if (syncPlanFetcher.data?.success) {
+      setSyncSuccess(true);
+      setShowSyncModal(false);
+      setShowSuccessBanner(true);
+      // Reload page after 2 seconds to reflect new plan
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } else if (syncPlanFetcher.data?.error) {
+      setShowErrorBanner(true);
+      setShowSyncModal(false);
+    }
+  }, [syncPlanFetcher.data]);
+
   const handleFormChange = useCallback((key) => (value) => {
     setFormState((prev) => ({ ...prev, [key]: value }));
   }, []);
@@ -520,7 +620,14 @@ export default function SettingsPage() {
           >
             Go to Shopify Billing
           </Button>
-          <Button onClick={() => window.location.href = '/app/sync-plan'}>
+          <Button
+            onClick={() => {
+              const formData = new FormData();
+              formData.append("intent", "sync-plan");
+              syncPlanFetcher.submit(formData, { method: "post" });
+            }}
+            loading={syncPlanFetcher.state === "submitting"}
+          >
             I've upgraded, sync my plan
           </Button>
         </InlineStack>
@@ -863,15 +970,18 @@ export default function SettingsPage() {
         title="Complete Your Upgrade"
         primaryAction={{
           content: "Sync My Plan",
+          loading: syncPlanFetcher.state === "submitting",
           onAction: () => {
-            window.location.href = '/app/sync-plan';
+            const formData = new FormData();
+            formData.append("intent", "sync-plan");
+            syncPlanFetcher.submit(formData, { method: "post" });
           },
         }}
         secondaryActions={[
           {
-            content: "Refresh Page",
+            content: "I'll Do This Later",
             onAction: () => {
-              window.location.reload();
+              setShowSyncModal(false);
             },
           },
         ]}
