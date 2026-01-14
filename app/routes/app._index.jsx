@@ -59,6 +59,82 @@ export const loader = async ({ request }) => {
 
   const showSetupBanner = !settings.hasSeenSetup;
 
+  // Auto-sync plan from Shopify
+  let planUpdated = false;
+  let updatedPlanName = null;
+  try {
+    const ACTIVE_SUBSCRIPTIONS_QUERY = `
+      query GetActiveSubscriptions {
+        currentAppInstallation {
+          activeSubscriptions {
+            id
+            name
+            status
+            lineItems {
+              plan {
+                pricingDetails {
+                  ... on AppRecurringPricing {
+                    price {
+                      amount
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    const response = await admin.graphql(ACTIVE_SUBSCRIPTIONS_QUERY);
+    const data = await response.json();
+    const activeSubscriptions = data?.data?.currentAppInstallation?.activeSubscriptions || [];
+
+    // Determine the plan based on active subscriptions
+    let detectedPlan = "free";
+    if (activeSubscriptions.length > 0) {
+      const subscription = activeSubscriptions[0];
+      const subscriptionName = subscription.name?.toLowerCase() || "";
+
+      if (subscriptionName.includes("ultra")) {
+        detectedPlan = "ultra";
+      } else if (subscriptionName.includes("pro")) {
+        detectedPlan = "pro";
+      } else {
+        // Try to detect by price
+        const price = parseFloat(
+          subscription.lineItems?.[0]?.plan?.pricingDetails?.price?.amount || "0"
+        );
+        if (price >= 40) {
+          detectedPlan = "ultra";
+        } else if (price >= 15) {
+          detectedPlan = "pro";
+        }
+      }
+    }
+
+    // Check current plan in database
+    const currentPlanConfig = await prisma.config.findUnique({
+      where: { key: `subscription.plan.${shop}` },
+    });
+
+    const currentPlan = currentPlanConfig?.value || "free";
+
+    // If plan changed, update database
+    if (detectedPlan !== currentPlan) {
+      console.log(`[DASHBOARD AUTO-SYNC] Plan changed from ${currentPlan} to ${detectedPlan} for shop ${shop}`);
+      await prisma.config.upsert({
+        where: { key: `subscription.plan.${shop}` },
+        update: { value: detectedPlan },
+        create: { key: `subscription.plan.${shop}`, value: detectedPlan },
+      });
+      planUpdated = true;
+      updatedPlanName = detectedPlan;
+    }
+  } catch (error) {
+    console.error("[DASHBOARD AUTO-SYNC] Error syncing plan:", error);
+  }
+
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -205,6 +281,8 @@ export const loader = async ({ request }) => {
     productMap,
     aiActivityChartData,
     showSetupBanner,
+    planUpdated,
+    updatedPlanName,
   });
 };
 
@@ -232,7 +310,7 @@ export const action = async ({ request }) => {
 };
 
 export default function DashboardPage() {
-  const { shop, stats, activityChartData, latestQuestions, topProductsByQuestions, topProductsByVotes, topCategories, topProductTypes, activeAdmins, latestUnanswered, tagDistribution, votesByDay, topQuestionsByVotes: topQuestionsByVotesList, latestPositiveAi, latestUnansweredAi, productMap, aiActivityChartData, showSetupBanner } = useLoaderData();
+  const { shop, stats, activityChartData, latestQuestions, topProductsByQuestions, topProductsByVotes, topCategories, topProductTypes, activeAdmins, latestUnanswered, tagDistribution, votesByDay, topQuestionsByVotes: topQuestionsByVotesList, latestPositiveAi, latestUnansweredAi, productMap, aiActivityChartData, showSetupBanner, planUpdated, updatedPlanName } = useLoaderData();
   const navigate = useNavigate();
   const fetcher = useFetcher();
   const [modalContent, setModalContent] = useState(null);
@@ -316,6 +394,20 @@ export default function DashboardPage() {
             >
               <p>
                 Get started by installing the Q&A blocks on your product pages. Follow our step-by-step guide to complete the setup in just 5 minutes.
+              </p>
+            </Banner>
+          </Layout.Section>
+        )}
+
+        {/* Plan Updated Banner - Show when plan is auto-synced */}
+        {planUpdated && (
+          <Layout.Section>
+            <Banner
+              title="Plan Updated Successfully!"
+              tone="success"
+            >
+              <p>
+                Your subscription has been updated to <strong>{updatedPlanName?.toUpperCase()}</strong>. All features are now available!
               </p>
             </Banner>
           </Layout.Section>
