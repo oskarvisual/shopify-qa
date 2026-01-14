@@ -276,8 +276,8 @@ export default function DashboardPage() {
     <Page title="Dashboard" primaryAction={{ content: "Add Question", onAction: () => navigate("/app/questions/new") }} secondaryActions={[{ content: "View All Questions", onAction: () => navigate("/app/questions-list") }]}>
       {modalContent && <Modal open onClose={() => setModalContent(null)} title="Log Details"><Modal.Section>{modalContent}</Modal.Section></Modal>}
       <Layout>
-        {/* Setup Guide Banner */}
-        {showSetupBanner ? (
+        {/* Setup Guide Banner - Only show on first time */}
+        {showSetupBanner && (
           <Layout.Section>
             <Banner
               title="Welcome! Complete your setup"
@@ -286,19 +286,6 @@ export default function DashboardPage() {
             >
               <p>
                 Get started by installing the Q&A blocks on your product pages. Follow our step-by-step guide to complete the setup in just 5 minutes.
-              </p>
-            </Banner>
-          </Layout.Section>
-        ) : (
-          <Layout.Section>
-            <Banner
-              title="Need help setting up?"
-              tone="info"
-              action={{ content: "View Setup Guide", url: "/app/setup" }}
-              onDismiss={() => {}}
-            >
-              <p>
-                Learn how to add Q&A blocks to your product pages with our step-by-step setup guide.
               </p>
             </Banner>
           </Layout.Section>
