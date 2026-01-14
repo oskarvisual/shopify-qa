@@ -19,6 +19,7 @@ import {
   Tooltip,
   Collapsible,
   Modal,
+  List,
 } from "@shopify/polaris";
 import { QuestionCircleIcon, ChevronDownIcon, ChevronUpIcon } from "@shopify/polaris-icons";
 import { authenticate } from "../shopify.server";
