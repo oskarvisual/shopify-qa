@@ -64,12 +64,14 @@ export const action = async ({ request }) => {
 
   const testMode = process.env.NODE_ENV !== "production";
   const mockBilling = process.env.MOCK_BILLING === "true";
+  const useManagedPricing = process.env.USE_MANAGED_PRICING === "true";
 
   console.log("[BILLING] Creating subscription", {
     plan: requestedPlan,
     billingPlan: billingPlan.name,
     testMode,
     mockBilling,
+    useManagedPricing,
     shop: session.shop,
   });
 
@@ -80,6 +82,21 @@ export const action = async ({ request }) => {
     mockUrl.searchParams.set("plan", requestedPlan);
     mockUrl.searchParams.set("mock", "true");
     return redirect(mockUrl.toString());
+  }
+
+  // Managed Pricing: Redirect to Shopify's pricing page
+  if (useManagedPricing) {
+    console.log("[BILLING] Using Managed Pricing - redirecting to Shopify admin");
+
+    // After merchant selects a plan, they'll be redirected back to the app
+    // We'll sync the plan automatically on their next visit
+    // For now, redirect to settings with a message to select plan in Shopify
+    const managedPricingUrl = new URL("/app/billing/confirm", appUrl);
+    managedPricingUrl.searchParams.set("plan", requestedPlan);
+    managedPricingUrl.searchParams.set("managed_pricing", "true");
+
+    console.log("[BILLING] Redirecting to managed pricing flow");
+    return redirect(managedPricingUrl.toString());
   }
 
   const variables = {

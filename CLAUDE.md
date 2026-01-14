@@ -233,6 +233,74 @@ node scripts/test-gdpr-webhook.js data_request
 - `app/routes/app.gdpr-test.jsx` - Testing UI (dev only)
 - `GDPR-TESTING.md` - Complete testing guide
 
+## 💳 Billing & Subscription Management
+
+This app supports **two billing modes** that can be switched via environment variable:
+
+### Billing Modes
+
+#### 1. **Managed Pricing** (Default - `USE_MANAGED_PRICING=true`)
+- Plans are configured in **Shopify Partners Dashboard** → Distribution → Pricing
+- Shopify handles all billing automatically
+- Merchants select plans directly in Shopify Admin
+- **Pros**: Simpler setup, plans visible in App Store, automatic billing
+- **Cons**: Less programmatic control, merchants leave app to upgrade
+
+**Current Configuration:**
+```
+Public plans in Partner Dashboard:
+- Free ($0/month)
+- Pro ($15/month)
+- Ultra ($40/month)
+```
+
+**Upgrade Flow:**
+1. Merchant clicks "Upgrade" button in Settings
+2. Banner appears with link to Shopify billing page
+3. Merchant visits Shopify Admin → Charges → Pricing Plans
+4. Selects and confirms new plan
+5. Returns to app and clicks "Sync my plan"
+6. App detects new plan via GraphQL and updates database
+
+#### 2. **App-Controlled Billing** (`USE_MANAGED_PRICING=false`)
+- App handles billing programmatically via Billing API
+- Uses `appSubscriptionCreate` GraphQL mutation
+- Merchants upgrade within the app (better UX)
+- **Pros**: Full programmatic control, better UX, can offer trials
+- **Cons**: Need to delete Partner Dashboard plans, requires `write_payments` scope
+
+**To Switch to App-Controlled:**
+1. Go to Shopify Partners Dashboard → Your App → Distribution → Pricing
+2. Delete all public plans
+3. Set `USE_MANAGED_PRICING=false` in `.env`
+4. Redeploy the app
+5. Upgrade buttons will use Billing API
+
+### Files
+
+- `app/routes/app.billing.jsx` - Handles upgrade requests (detects billing mode)
+- `app/routes/app.billing.confirm.jsx` - Confirms subscription after Shopify redirect
+- `app/routes/app.sync-plan.jsx` - Syncs plan from Shopify (Managed Pricing only)
+- `app/lib/plans.js` - Plan definitions and feature flags
+- `app/lib/plans.server.js` - Server-side plan detection
+
+### Environment Variables
+
+```env
+# Set to "true" for Managed Pricing, "false" for App-Controlled
+USE_MANAGED_PRICING=true
+
+# For development only (skips Shopify API calls)
+MOCK_BILLING=false
+```
+
+### Downgrades and Cancellations
+
+- **Managed Pricing**: Handled automatically by Shopify
+- **App-Controlled**: Merchants cancel via Shopify Admin → Apps → Manage
+
+Both modes update the plan in the database on next app visit.
+
 ## 📡 REST to GraphQL Migration
 
 **IMPORTANT:** This app uses GraphQL API exclusively. REST Admin API for products/variants is deprecated and will be unsupported after 2025-04-01.

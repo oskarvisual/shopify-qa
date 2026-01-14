@@ -129,6 +129,7 @@ export const loader = async ({ request }) => {
     planFeatures,
     upgradeStatus,
     upgradePlan,
+    shop,
   });
 };
 
@@ -311,7 +312,7 @@ export const action = async ({ request }) => {
 };
 
 export default function SettingsPage() {
-  const { webhookSettings, emailSettings, aiSettings, helpLinks, translationSettings, upgradeStatus, upgradePlan } = useLoaderData();
+  const { webhookSettings, emailSettings, aiSettings, helpLinks, translationSettings, upgradeStatus, upgradePlan, shop } = useLoaderData();
   const actionData = useActionData();
   const emailTestFetcher = useFetcher();
   const billingFetcher = useFetcher();
@@ -496,10 +497,30 @@ export default function SettingsPage() {
   );
 
   const managedPricingBanner = upgradeStatus === "managed_pricing" && (
-    <Banner title="Billing Managed by Shopify" tone="info">
-      <p>
-        This app uses Shopify-managed pricing. Your plan will be automatically updated and billing is handled directly by Shopify through your Shopify subscription. No further action is needed on your part.
-      </p>
+    <Banner title="Upgrade Your Plan" tone="info">
+      <BlockStack gap="300">
+        <Text as="p">
+          To upgrade to the <strong>{upgradePlan?.toUpperCase()}</strong> plan, please visit your Shopify billing page:
+        </Text>
+        <InlineStack gap="200">
+          <Button
+            url={`https://admin.shopify.com/store/${shop?.replace('.myshopify.com', '') || 'YOUR_STORE'}/charges/product-questions-and-answers-2/pricing_plans`}
+            external
+            variant="primary"
+          >
+            Go to Shopify Billing
+          </Button>
+          <Button onClick={() => window.location.href = '/app/sync-plan'}>
+            I've upgraded, sync my plan
+          </Button>
+        </InlineStack>
+      </BlockStack>
+    </Banner>
+  );
+
+  const planUpdatedBanner = upgradeStatus === "true" && (
+    <Banner title="Plan Updated Successfully!" tone="success">
+      <Text as="p">Your plan has been updated to <strong>{upgradePlan?.toUpperCase() || 'the new plan'}</strong>. All features are now available.</Text>
     </Banner>
   );
 
@@ -512,6 +533,7 @@ export default function SettingsPage() {
               {successBanner}
               {errorBanner}
               {managedPricingBanner}
+              {planUpdatedBanner}
             </BlockStack>
           </Layout.Section>
 
