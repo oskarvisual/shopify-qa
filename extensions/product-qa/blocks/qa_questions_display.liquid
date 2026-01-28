@@ -271,11 +271,13 @@
   }
 
   .product-qa-display .qa-vote-container {
-    position: static;
+    position: absolute;
+    right: 0;
+    top: 0;
     display: flex;
     justify-content: flex-end;
     gap: 8px;
-    margin-bottom: 8px;
+    margin-bottom: 0;
   }
 
   .product-qa-display .btn {
@@ -349,6 +351,33 @@
   .product-qa-display .vote-icon {
     width: 12px;
     height: 12px;
+  }
+
+  .product-qa-display .btn-vote .vote-count:empty {
+    display: none;
+  }
+
+  @media (max-width: 768px) {
+    .product-qa-display .qa-vote-container {
+      position: absolute;
+      right: 0;
+      top: 0;
+    }
+
+    .product-qa-display .btn-vote {
+      flex-direction: column;
+      gap: 2px;
+      padding: 6px 10px;
+    }
+
+    .product-qa-display .btn-vote .vote-label {
+      display: none;
+    }
+
+    .product-qa-display .btn-vote .vote-count {
+      font-size: 11px;
+      line-height: 1;
+    }
   }
 
   /* Branding Styles */
@@ -1027,9 +1056,10 @@
             </svg>`;
 
     function voteButtonContent(label, votes) {
-      const voteCount = typeof votes === 'number' ? ` (${votes})` : '';
+      const voteCount = typeof votes === 'number' ? `(${votes})` : '';
       return `${voteButtonIcon}
-            <span>${label}${voteCount}</span>`;
+            <span class="vote-label">${label}</span>
+            <span class="vote-count">${voteCount}</span>`;
     }
 
     const defaultDisplayTexts = {
