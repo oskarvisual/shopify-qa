@@ -46,10 +46,21 @@ export async function loader({ request }) {
       },
       skip,
       take: limit,
-      include: {
+      select: {
+        id: true,
+        question: true,
+        customerName: true,
+        createdAt: true,
+        votes: true,
         answers: {
           where: { isPublished: true },
           orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            answer: true,
+            authorName: true,
+            createdAt: true,
+          },
         },
       },
       orderBy: { createdAt: "desc" },

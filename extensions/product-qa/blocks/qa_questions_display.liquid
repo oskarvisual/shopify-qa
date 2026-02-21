@@ -782,7 +782,7 @@
           await fetch('/apps/a/api/public/ai-log-update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ aiLogId: fallbackCurrentAiLogId, ...data })
+            body: JSON.stringify({ aiLogId: fallbackCurrentAiLogId, shop: shopDomain, ...data })
           });
         } catch (error) {
           console.error('Failed to update AI log:', error);
@@ -1067,11 +1067,21 @@
               <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333V17a1 1 0 001 1h6.758a1 1 0 00.97-1.222l-1.036-4.143a1 1 0 00-.97-1.222H9.586V7.5a1 1 0 00-2 0v2.833H6zM9 4.5a1.5 1.5 0 113 0v1a1.5 1.5 0 01-3 0v-1z"></path>
             </svg>`;
 
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
     function voteButtonContent(label, votes) {
+      const safeLabel = escapeHtml(label);
       const voteCount = typeof votes === 'number' ? `(${votes})` : '';
       return `${voteButtonIcon}
-            <span class="vote-label">${label}</span>
-            <span class="vote-count">${voteCount}</span>`;
+            <span class="vote-label">${safeLabel}</span>
+            <span class="vote-count">${escapeHtml(voteCount)}</span>`;
     }
 
     const defaultDisplayTexts = {
@@ -1448,25 +1458,30 @@
     }
 
     function formatQuestion(question) {
+      const safeQuestionId = escapeHtml(question.id || '');
+      const safeCustomerEmail = escapeHtml(customerEmail || '');
+      const safeCustomerId = escapeHtml(customerId || '');
+      const safeQuestionText = escapeHtml(question.question || '');
+
       // Question meta
       const questionMeta = [];
       if (showQuestionMeta) {
         if (question.customerName) {
           const askedPrefix = textSettings.askedBy ? `${textSettings.askedBy} ` : "";
-          questionMeta.push(`${askedPrefix}${question.customerName}`);
+          questionMeta.push(`${escapeHtml(askedPrefix)}${escapeHtml(question.customerName)}`);
         }
         const datePrefix = textSettings.onDate ? `${textSettings.onDate} ` : "";
-        questionMeta.push(`${datePrefix}${formatDate(question.createdAt)}`);
+        questionMeta.push(`${escapeHtml(datePrefix)}${escapeHtml(formatDate(question.createdAt))}`);
       }
 
       // Vote button (top right) - Initial state, will be updated by checkAllVoteStatuses
       const voteButton = showVotes ? `
         <div class="qa-vote-container">
-          <form class="qa-vote-form" method="post" data-question-id="${question.id}">
-            <input type="hidden" name="questionId" value="${question.id}">
+          <form class="qa-vote-form" method="post" data-question-id="${safeQuestionId}">
+            <input type="hidden" name="questionId" value="${safeQuestionId}">
             <input type="hidden" name="shop" value="{{ shop.domain }}">
-            <input type="hidden" name="customerEmail" value="${customerEmail}">
-            <input type="hidden" name="customerId" value="${customerId}">
+            <input type="hidden" name="customerEmail" value="${safeCustomerEmail}">
+            <input type="hidden" name="customerId" value="${safeCustomerId}">
             <button type="submit" class="btn btn-vote" data-votes="${question.votes || 0}">
               ${voteButtonContent(displayTexts.helpful, question.votes || 0)}
             </button>
@@ -1477,22 +1492,22 @@
       // Answers rows - Only one "Answers:" label for all answers
       let answersRows = '';
       if (question.answers.length > 0) {
-        answersRows = `<tr><td class="qa-label">${textSettings.answerLabel}</td><td class="qa-content">`;
+        answersRows = `<tr><td class="qa-label">${escapeHtml(textSettings.answerLabel)}</td><td class="qa-content">`;
 
         question.answers.forEach((answer, index) => {
           const answerMeta = [];
           if (showAnswerMeta) {
             if (answer.authorName) {
               const answeredPrefix = textSettings.answeredBy ? `${textSettings.answeredBy} ` : "";
-              answerMeta.push(`${answeredPrefix}${answer.authorName}`);
+              answerMeta.push(`${escapeHtml(answeredPrefix)}${escapeHtml(answer.authorName)}`);
             }
             const answerDatePrefix = textSettings.onDate ? `${textSettings.onDate} ` : "";
-            answerMeta.push(`${answerDatePrefix}${formatDate(answer.createdAt)}`);
+            answerMeta.push(`${escapeHtml(answerDatePrefix)}${escapeHtml(formatDate(answer.createdAt))}`);
           }
 
           answersRows += `
             <div class="qa-answer-item" ${index > 0 ? 'style="margin-top: 16px;"' : ''}>
-              <div class="qa-answer-text">${answer.answer}</div>
+              <div class="qa-answer-text">${escapeHtml(answer.answer || '')}</div>
               ${answerMeta.length > 0 ? `<div class="qa-meta">${answerMeta.join(' ')}</div>` : ''}
             </div>
           `;
@@ -1505,10 +1520,10 @@
         <div class="qa-item">
           <table class="qa-table">
             <tr>
-              <td class="qa-label">${textSettings.questionLabel}</td>
+              <td class="qa-label">${escapeHtml(textSettings.questionLabel)}</td>
               <td class="qa-content">
                 ${voteButton}
-                <div class="qa-question-text">${question.question}</div>
+                <div class="qa-question-text">${safeQuestionText}</div>
                 ${questionMeta.length > 0 ? `<div class="qa-meta">${questionMeta.join(' ')}</div>` : ''}
               </td>
             </tr>
@@ -1632,14 +1647,22 @@
     }
 
     function showNoQuestions() {
-      qaList.innerHTML = `<div class="no-questions">${textSettings.noQuestions}</div>`;
+      qaList.innerHTML = '';
+      const noQuestionsEl = document.createElement('div');
+      noQuestionsEl.className = 'no-questions';
+      noQuestionsEl.textContent = textSettings.noQuestions;
+      qaList.appendChild(noQuestionsEl);
       if (loadMoreSentinel) {
         loadMoreSentinel.style.display = hasMore ? 'block' : 'none';
       }
     }
 
     function showError() {
-      qaList.innerHTML = `<div class="error">${displayTexts.error}</div>`;
+      qaList.innerHTML = '';
+      const errorEl = document.createElement('div');
+      errorEl.className = 'error';
+      errorEl.textContent = displayTexts.error;
+      qaList.appendChild(errorEl);
       if (loadMoreSentinel) {
         loadMoreSentinel.style.display = 'none';
       }

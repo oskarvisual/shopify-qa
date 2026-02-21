@@ -298,7 +298,7 @@ document.addEventListener('DOMContentLoaded', function() {
           await fetch('/apps/a/api/public/ai-log-update', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ aiLogId: currentAiLogId, ...data })
+            body: JSON.stringify({ aiLogId: currentAiLogId, shop: shopDomain, ...data })
           });
         } catch (error) {
           console.error('Failed to update AI log:', error);

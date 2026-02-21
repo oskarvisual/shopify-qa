@@ -40,10 +40,21 @@ export async function action({ request }) {
         return json({ error: "Author email is required." }, { status: 400 });
       }
 
+      const question = await prisma.question.findFirst({
+        where: {
+          id: questionId,
+          shop: session.shop,
+        },
+      });
+
+      if (!question) {
+        return json({ error: "Question not found." }, { status: 404 });
+      }
+
       const newAnswer = await prisma.answer.create({
         data: {
           shop: session.shop,
-          questionId,
+          questionId: question.id,
           authorName,
           authorEmail,
           answer,
@@ -51,28 +62,25 @@ export async function action({ request }) {
       });
 
       if (notifyCustomer) {
-        const question = await prisma.question.findUnique({ where: { id: questionId } });
-        if (question) {
-          let productHandle;
-          let storeName;
-          if (question.productId) {
-            try {
-              const productResponse = await admin.graphql(GET_PRODUCT_HANDLE_AND_SHOP_QUERY, {
-                variables: { productId: `gid://shopify/Product/${question.productId}` },
-              });
-              const productData = await productResponse.json();
-              productHandle = productData.data?.product?.handle;
-              storeName = productData.data?.shop?.name;
-            } catch (productError) {
-              console.error("Failed to fetch product details for answer notification:", productError);
-            }
+        let productHandle;
+        let storeName;
+        if (question.productId) {
+          try {
+            const productResponse = await admin.graphql(GET_PRODUCT_HANDLE_AND_SHOP_QUERY, {
+              variables: { productId: `gid://shopify/Product/${question.productId}` },
+            });
+            const productData = await productResponse.json();
+            productHandle = productData.data?.product?.handle;
+            storeName = productData.data?.shop?.name;
+          } catch (productError) {
+            console.error("Failed to fetch product details for answer notification:", productError);
           }
-
-          await sendNewAnswerNotification(session.shop, question, newAnswer, {
-            productHandle,
-            storeName,
-          });
         }
+
+        await sendNewAnswerNotification(session.shop, question, newAnswer, {
+          productHandle,
+          storeName,
+        });
       }
 
       return json({ answer: newAnswer });

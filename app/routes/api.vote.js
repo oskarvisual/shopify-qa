@@ -75,8 +75,8 @@ function resolveIdentifier({ request, shop, identifier, customerEmail, customerI
 
 export async function loader({ request }) {
   const url = new URL(request.url);
-  const questionId = url.searchParams.get("questionId");
-  const shop = url.searchParams.get("shop");
+  const questionId = (url.searchParams.get("questionId") || "").trim();
+  const shop = (url.searchParams.get("shop") || "").trim();
 
   if (!questionId || !shop) {
     return cors(request, json({ hasVoted: false, votes: 0 }, { status: 200 }));
@@ -104,8 +104,8 @@ export async function loader({ request }) {
         },
       },
     }),
-    prisma.question.findUnique({
-      where: { id: questionId },
+    prisma.question.findFirst({
+      where: { id: questionId, shop },
       select: { votes: true },
     }),
   ]);
@@ -121,8 +121,10 @@ export async function loader({ request }) {
 
 export async function action({ request }) {
   const formData = await request.formData();
-  const questionId = formData.get("questionId");
-  const shop = formData.get("shop");
+  const questionIdRaw = formData.get("questionId");
+  const shopRaw = formData.get("shop");
+  const questionId = typeof questionIdRaw === "string" ? questionIdRaw.trim() : "";
+  const shop = typeof shopRaw === "string" ? shopRaw.trim() : "";
   const customerEmailRaw = formData.get("customerEmail");
   const customerIdRaw = formData.get("customerId");
   const identifier = resolveIdentifier({
@@ -143,8 +145,26 @@ export async function action({ request }) {
     let resultVotes = 0;
     let alreadyVoted = false;
     let recordedVote = null;
+    let questionMissing = false;
 
     await prisma.$transaction(async (tx) => {
+      const scopedQuestion = await tx.question.findFirst({
+        where: { id: questionId, shop },
+        select: {
+          id: true,
+          productId: true,
+          question: true,
+          customerName: true,
+          customerEmail: true,
+          votes: true,
+        },
+      });
+
+      if (!scopedQuestion) {
+        questionMissing = true;
+        return;
+      }
+
       const existingVote = await tx.voteLog.findUnique({
         where: {
           questionId_identifier_shop: {
@@ -157,11 +177,7 @@ export async function action({ request }) {
 
       if (existingVote) {
         alreadyVoted = true;
-        const question = await tx.question.findUnique({
-          where: { id: questionId },
-          select: { votes: true },
-        });
-        resultVotes = question?.votes ?? 0;
+        resultVotes = scopedQuestion.votes ?? 0;
         return;
       }
 
@@ -174,7 +190,7 @@ export async function action({ request }) {
       });
 
       const updatedQuestion = await tx.question.update({
-        where: { id: questionId },
+        where: { id: questionId, shop },
         data: { votes: { increment: voteValue > 0 ? 1 : -1 } },
         select: { id: true, productId: true, question: true, customerName: true, customerEmail: true, votes: true },
       });
@@ -187,6 +203,10 @@ export async function action({ request }) {
         };
       }
     });
+
+    if (questionMissing) {
+      return cors(request, json({ error: "Question not found" }, { status: 404 }));
+    }
 
     if (alreadyVoted) {
       return cors(request, json({ success: false, error: "already voted", votes: resultVotes }));

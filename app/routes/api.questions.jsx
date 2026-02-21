@@ -17,7 +17,7 @@ const GET_PRODUCT_DETAILS_QUERY = `
 `;
 
 export const loader = async ({ request }) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const productId = url.searchParams.get("productId");
 
@@ -106,11 +106,15 @@ export const action = async ({ request }) => {
     }
 
     if (method === "PUT") {
-      const id = formData.get("id");
+      const id = (formData.get("id") || "").trim();
       const isPublished = formData.get("isPublished") === "true";
 
+      if (!id) {
+        return json({ error: "Question identifier is required." }, { status: 400 });
+      }
+
       const updatedQuestion = await prisma.question.update({
-        where: { id },
+        where: { id, shop: session.shop },
         data: { isPublished },
       });
 
@@ -118,10 +122,14 @@ export const action = async ({ request }) => {
     }
 
     if (method === "DELETE") {
-      const id = formData.get("id");
+      const id = (formData.get("id") || "").trim();
+
+      if (!id) {
+        return json({ error: "Question identifier is required." }, { status: 400 });
+      }
 
       await prisma.question.delete({
-        where: { id },
+        where: { id, shop: session.shop },
       });
 
       return json({ success: true });
