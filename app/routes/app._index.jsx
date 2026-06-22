@@ -21,6 +21,7 @@ import prisma from "../db.server";
 import { PlanFeature, planHasFeature } from "../lib/plans";
 import { getSubscriptionPlanContext } from "../lib/plans.server";
 import { usePlanFeature } from "../lib/plan-context";
+import { getAdminShopDomains, shopDomainWhere } from "../lib/shop-domain.server.js";
 
 function formatMilliseconds(ms) {
   if (ms < 0) ms = 0;
@@ -38,6 +39,8 @@ function formatMilliseconds(ms) {
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const { shop, subscriptionPlan } = session;
+  const shopDomains = await getAdminShopDomains({ admin, shop });
+  const shopWhere = shopDomainWhere(shopDomains);
   const planContext = await getSubscriptionPlanContext({ shop, sessionPlan: subscriptionPlan });
   const includeAdvancedMetrics = planHasFeature(planContext.features, PlanFeature.DASHBOARD_ENHANCED);
   const includeAiMetrics = planHasFeature(planContext.features, PlanFeature.DASHBOARD_AI_METRICS);
@@ -139,16 +142,16 @@ export const loader = async ({ request }) => {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
   const [publishedQuestionCount, pendingQuestionCount, totalAnswerCount, recentQuestionsActivity, recentAnswersActivity, totalQuestions, unansweredQuestionsCount, allQuestionsWithTags, voteLogs, answeredQuestions] = await Promise.all([
-    prisma.question.count({ where: { shop, isPublished: true } }),
-    prisma.question.count({ where: { shop, isPublished: false } }),
-    prisma.answer.count({ where: { question: { shop } } }),
-    prisma.question.findMany({ where: { shop, createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true } }),
-    prisma.answer.findMany({ where: { question: { shop }, createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true } }),
-    prisma.question.count({ where: { shop } }),
-    prisma.question.count({ where: { shop, answers: { none: {} } } }),
-    prisma.question.findMany({ where: { shop, AND: [{ productTags: { not: null } }, { productTags: { not: '' } }] }, select: { productTags: true } }),
-    prisma.voteLog.findMany({ where: { shop, createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true } }),
-    prisma.question.findMany({ where: { shop, answers: { some: {} } }, include: { answers: { orderBy: { createdAt: 'asc' }, take: 1 } } }),
+    prisma.question.count({ where: { shop: shopWhere, isPublished: true } }),
+    prisma.question.count({ where: { shop: shopWhere, isPublished: false } }),
+    prisma.answer.count({ where: { question: { shop: shopWhere } } }),
+    prisma.question.findMany({ where: { shop: shopWhere, createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true } }),
+    prisma.answer.findMany({ where: { question: { shop: shopWhere }, createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true } }),
+    prisma.question.count({ where: { shop: shopWhere } }),
+    prisma.question.count({ where: { shop: shopWhere, answers: { none: {} } } }),
+    prisma.question.findMany({ where: { shop: shopWhere, AND: [{ productTags: { not: null } }, { productTags: { not: '' } }] }, select: { productTags: true } }),
+    prisma.voteLog.findMany({ where: { shop: shopWhere, createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true } }),
+    prisma.question.findMany({ where: { shop: shopWhere, answers: { some: {} } }, include: { answers: { orderBy: { createdAt: 'asc' }, take: 1 } } }),
   ]);
 
   let latestQuestions = [];
@@ -162,14 +165,14 @@ export const loader = async ({ request }) => {
 
   if (includeAdvancedMetrics) {
     [latestQuestions, topProductsByQuestions, topProductsByVotes, topCategories, topProductTypes, activeAdmins, topQuestionsByVotesList, latestUnanswered] = await Promise.all([
-      prisma.question.findMany({ where: { shop }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, question: true, createdAt: true } }),
-      prisma.question.groupBy({ by: ["productId"], where: { shop }, _count: { productId: true }, orderBy: { _count: { productId: "desc" } }, take: 5 }),
-      prisma.question.groupBy({ by: ["productId"], where: { shop }, _sum: { votes: true }, orderBy: { _sum: { votes: "desc" } }, take: 5 }),
-      prisma.question.groupBy({ by: ["productCategory"], where: { shop, productCategory: { not: null } }, _count: { productCategory: true }, orderBy: { _count: { productCategory: "desc" } }, take: 5 }),
-      prisma.question.groupBy({ by: ["productType"], where: { shop, productType: { not: null } }, _count: { productType: true }, orderBy: { _count: { productType: "desc" } }, take: 5 }),
-      prisma.answer.groupBy({ by: ['authorEmail'], where: { question: { shop: shop }, authorEmail: { not: null } }, _count: { authorEmail: true }, orderBy: { _count: { authorEmail: 'desc' } }, take: 5 }),
-      prisma.question.findMany({ where: { shop }, orderBy: { votes: 'desc' }, take: 5, select: { id: true, question: true, votes: true } }),
-      prisma.question.findMany({ where: { shop, answers: { none: {} } }, orderBy: { createdAt: 'desc' }, take: 5, select: { id: true, question: true, createdAt: true } }),
+      prisma.question.findMany({ where: { shop: shopWhere }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, question: true, createdAt: true } }),
+      prisma.question.groupBy({ by: ["productId"], where: { shop: shopWhere }, _count: { productId: true }, orderBy: { _count: { productId: "desc" } }, take: 5 }),
+      prisma.question.groupBy({ by: ["productId"], where: { shop: shopWhere }, _sum: { votes: true }, orderBy: { _sum: { votes: "desc" } }, take: 5 }),
+      prisma.question.groupBy({ by: ["productCategory"], where: { shop: shopWhere, productCategory: { not: null } }, _count: { productCategory: true }, orderBy: { _count: { productCategory: "desc" } }, take: 5 }),
+      prisma.question.groupBy({ by: ["productType"], where: { shop: shopWhere, productType: { not: null } }, _count: { productType: true }, orderBy: { _count: { productType: "desc" } }, take: 5 }),
+      prisma.answer.groupBy({ by: ['authorEmail'], where: { question: { shop: shopWhere }, authorEmail: { not: null } }, _count: { authorEmail: true }, orderBy: { _count: { authorEmail: 'desc' } }, take: 5 }),
+      prisma.question.findMany({ where: { shop: shopWhere }, orderBy: { votes: 'desc' }, take: 5, select: { id: true, question: true, votes: true } }),
+      prisma.question.findMany({ where: { shop: shopWhere, answers: { none: {} } }, orderBy: { createdAt: 'desc' }, take: 5, select: { id: true, question: true, createdAt: true } }),
     ]);
   }
 
@@ -179,9 +182,9 @@ export const loader = async ({ request }) => {
 
   if (includeAiMetrics) {
     const [positive, unanswered, activity] = await Promise.all([
-      prisma.aiLog.findMany({ where: { shop, vote: 1 }, orderBy: { createdAt: 'desc' }, take: 5 }),
-      prisma.aiLog.findMany({ where: { shop, noAnswer: true }, orderBy: { createdAt: 'desc' }, take: 5 }),
-      prisma.aiLog.findMany({ where: { shop, createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true, vote: true, noAnswer: true, askedHuman: true } }),
+      prisma.aiLog.findMany({ where: { shop: shopWhere, vote: 1 }, orderBy: { createdAt: 'desc' }, take: 5 }),
+      prisma.aiLog.findMany({ where: { shop: shopWhere, noAnswer: true }, orderBy: { createdAt: 'desc' }, take: 5 }),
+      prisma.aiLog.findMany({ where: { shop: shopWhere, createdAt: { gte: thirtyDaysAgo } }, select: { createdAt: true, vote: true, noAnswer: true, askedHuman: true } }),
     ]);
 
     latestPositiveAi = positive;

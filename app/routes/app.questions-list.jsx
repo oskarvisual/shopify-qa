@@ -20,6 +20,7 @@ import { authenticate } from "../shopify.server";
 import { triggerWebhook } from "../lib/webhook.server.js";
 import { sendQuestionPublishedNotification } from "../lib/email.server.js";
 import prisma from "../db.server";
+import { getAdminShopDomains, shopDomainWhere } from "../lib/shop-domain.server.js";
 const PAGE_SIZE = 10;
 
 const GET_PRODUCT_HANDLE_AND_SHOP_QUERY = `
@@ -37,6 +38,7 @@ const GET_PRODUCT_HANDLE_AND_SHOP_QUERY = `
 export const action = async ({ request }) => {
   const { session, admin } = await authenticate.admin(request);
   const { shop } = session;
+  const shopDomains = await getAdminShopDomains({ admin, shop });
   const formData = await request.formData();
 
   const actionType = formData.get("_action");
@@ -48,12 +50,12 @@ export const action = async ({ request }) => {
         where: { id: questionId },
       });
 
-      if (!existingQuestion || existingQuestion.shop !== shop) {
+      if (!existingQuestion || !shopDomains.includes(existingQuestion.shop)) {
         return json({ success: false, error: "Question not found." }, { status: 404 });
       }
 
       const question = await prisma.question.update({
-        where: { id: questionId, shop },
+        where: { id: questionId },
         data: { isPublished: true },
         include: { answers: true },
       });
@@ -103,6 +105,8 @@ export const action = async ({ request }) => {
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const { shop } = session;
+  const shopDomains = await getAdminShopDomains({ admin, shop });
+  const shopWhere = shopDomainWhere(shopDomains);
 
   const url = new URL(request.url);
   const page = parseInt(url.searchParams.get("page") || "1");
@@ -112,7 +116,7 @@ export const loader = async ({ request }) => {
   const type = url.searchParams.get("type");
 
   const whereClause = {
-    shop,
+    shop: shopWhere,
     ...(query && { OR: [{ customerName: { contains: query } }, { customerEmail: { contains: query } }, { question: { contains: query } }, { answers: { some: { answer: { contains: query } } } }] }),
     ...(status !== "all" && { isPublished: status === "published" }),
     ...(category && { productCategory: category }),
@@ -160,6 +164,7 @@ export const loader = async ({ request }) => {
     category,
     type,
     shop,
+    shopDomains,
     productMap,
   });
 };

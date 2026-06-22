@@ -26,6 +26,7 @@ import { sendNewAnswerNotification, sendQuestionPublishedNotification } from "..
 import { usePlanFeature } from "../lib/plan-context";
 import { PlanFeature, planHasFeature } from "../lib/plans";
 import { getSubscriptionPlanContext } from "../lib/plans.server";
+import { getAdminShopDomains, shopDomainWhere } from "../lib/shop-domain.server.js";
 const CHARACTER_LIMIT = 500;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const GET_PRODUCT_HANDLE_AND_SHOP_QUERY = `
@@ -43,6 +44,8 @@ const GET_PRODUCT_HANDLE_AND_SHOP_QUERY = `
 export const loader = async ({ request, params }) => {
   const { session, admin } = await authenticate.admin(request);
   const { shop } = session;
+  const shopDomains = await getAdminShopDomains({ admin, shop });
+  const shopWhere = shopDomainWhere(shopDomains);
   const { questionId } = params;
 
   if (!questionId) {
@@ -50,8 +53,8 @@ export const loader = async ({ request, params }) => {
   }
 
   const [question, emailSettings, aiSettings, planContext] = await Promise.all([
-    prisma.question.findUnique({
-      where: { id: questionId, shop: shop },
+    prisma.question.findFirst({
+      where: { id: questionId, shop: shopWhere },
       include: { answers: { orderBy: { createdAt: "asc" } } },
     }),
     prisma.emailSetting.findUnique({ where: { shop } }),
@@ -109,6 +112,8 @@ export const loader = async ({ request, params }) => {
 export const action = async ({ request, params }) => {
   const { session, admin } = await authenticate.admin(request);
   const { shop } = session;
+  const shopDomains = await getAdminShopDomains({ admin, shop });
+  const shopWhere = shopDomainWhere(shopDomains);
   const { questionId } = params;
 
   if (!questionId) {
@@ -129,11 +134,15 @@ export const action = async ({ request, params }) => {
 
     try {
       const existingQuestion = await prisma.question.findUnique({
-        where: { id: questionId, shop: shop },
+        where: { id: questionId },
       });
 
+      if (!existingQuestion || !shopDomains.includes(existingQuestion.shop)) {
+        return json({ error: "Question not found" }, { status: 404 });
+      }
+
       const updatedQuestion = await prisma.question.update({
-        where: { id: questionId, shop: shop },
+        where: { id: questionId },
         data: { question: questionText, customerName, customerEmail, isPublished },
         include: { answers: true },
       });
@@ -173,8 +182,17 @@ export const action = async ({ request, params }) => {
     }
   } else if (actionType === "deleteQuestion") {
     try {
+      const existingQuestion = await prisma.question.findFirst({
+        where: { id: questionId, shop: shopWhere },
+        select: { id: true },
+      });
+
+      if (!existingQuestion) {
+        return json({ error: "Question not found" }, { status: 404 });
+      }
+
       const deletedQuestion = await prisma.question.delete({ 
-        where: { id: questionId, shop: shop },
+        where: { id: questionId },
         include: { answers: true },
       });
 
@@ -213,8 +231,17 @@ export const action = async ({ request, params }) => {
 
     try {
       console.log('Creating answer with data:', { shop, questionId, answerText, authorName, authorEmail });
+      const existingQuestion = await prisma.question.findFirst({
+        where: { id: questionId, shop: shopWhere },
+        select: { id: true, shop: true },
+      });
+
+      if (!existingQuestion) {
+        return json({ error: "Question not found" }, { status: 404 });
+      }
+
       const newAnswer = await prisma.answer.create({
-        data: { shop, questionId, answer: answerText, authorName, authorEmail, isPublished: true },
+        data: { shop: existingQuestion.shop, questionId, answer: answerText, authorName, authorEmail, isPublished: true },
         include: { question: true },
       });
 
@@ -280,8 +307,20 @@ export const action = async ({ request, params }) => {
     }
 
     try {
+      const existingAnswer = await prisma.answer.findFirst({
+        where: {
+          id: answerId,
+          question: { shop: shopWhere },
+        },
+        select: { id: true },
+      });
+
+      if (!existingAnswer) {
+        return json({ error: "Answer not found" }, { status: 404 });
+      }
+
       const updatedAnswer = await prisma.answer.update({
-        where: { id: answerId, shop },
+        where: { id: answerId },
         data: { answer: answerText, authorName, authorEmail, isPublished },
         include: { question: true },
       });
@@ -300,8 +339,20 @@ export const action = async ({ request, params }) => {
   } else if (actionType === "deleteAnswer") {
     const answerId = formData.get("answerId");
     try {
+      const existingAnswer = await prisma.answer.findFirst({
+        where: {
+          id: answerId,
+          question: { shop: shopWhere },
+        },
+        select: { id: true },
+      });
+
+      if (!existingAnswer) {
+        return json({ error: "Answer not found" }, { status: 404 });
+      }
+
       const deletedAnswer = await prisma.answer.delete({
-        where: { id: answerId, shop },
+        where: { id: answerId },
         include: { question: true },
       });
 

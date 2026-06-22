@@ -1,9 +1,11 @@
 import { json } from "@remix-run/node";
 import { cors } from "../lib/cors.server.js";
 import prisma from "../db.server";
+import { resolvePublicShopDomain } from "../lib/shop-domain.server.js";
 
 export async function action({ request }) {
-  const { aiLogId, shop, vote, askedHuman } = await request.json();
+  const { aiLogId, shop: submittedShop, vote, askedHuman } = await request.json();
+  const shop = resolvePublicShopDomain(request, submittedShop);
 
   if (!aiLogId || !shop) {
     return cors(request, json({ error: "aiLogId and shop are required" }, { status: 400 }));

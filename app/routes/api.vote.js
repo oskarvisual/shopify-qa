@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { cors } from "../lib/cors.server.js";
 import prisma from "../db.server";
 import { triggerWebhook } from "../lib/webhook.server.js";
+import { resolvePublicShopDomain } from "../lib/shop-domain.server.js";
 
 function normalizeIdentifier(value) {
   if (typeof value !== "string") {
@@ -76,7 +77,7 @@ function resolveIdentifier({ request, shop, identifier, customerEmail, customerI
 export async function loader({ request }) {
   const url = new URL(request.url);
   const questionId = (url.searchParams.get("questionId") || "").trim();
-  const shop = (url.searchParams.get("shop") || "").trim();
+  const shop = resolvePublicShopDomain(request, url.searchParams.get("shop"));
 
   if (!questionId || !shop) {
     return cors(request, json({ hasVoted: false, votes: 0 }, { status: 200 }));
@@ -124,7 +125,7 @@ export async function action({ request }) {
   const questionIdRaw = formData.get("questionId");
   const shopRaw = formData.get("shop");
   const questionId = typeof questionIdRaw === "string" ? questionIdRaw.trim() : "";
-  const shop = typeof shopRaw === "string" ? shopRaw.trim() : "";
+  const shop = resolvePublicShopDomain(request, shopRaw);
   const customerEmailRaw = formData.get("customerEmail");
   const customerIdRaw = formData.get("customerId");
   const identifier = resolveIdentifier({

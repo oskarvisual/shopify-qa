@@ -1,10 +1,11 @@
 import { json } from "@remix-run/node";
 import prisma from "../db.server";
 import { cors } from "../lib/cors.server.js";
+import { resolvePublicShopDomain } from "../lib/shop-domain.server.js";
 
 export async function loader({ request }) {
   const url = new URL(request.url);
-  const shop = url.searchParams.get("shop");
+  const shop = resolvePublicShopDomain(request, url.searchParams.get("shop"));
 
   if (!shop) {
     const response = json({ error: "Missing shop" }, { status: 400 });

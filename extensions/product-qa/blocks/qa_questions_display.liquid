@@ -94,7 +94,7 @@
             <input type="email" id="customer-email-fallback" name="customerEmail" value="{{ customer.email }}" {% if block.settings.modal_email_required %}required{% endif %}>
           </div>
         </div>
-        <input type="hidden" name="shop" value="{{ shop.domain }}">
+        <input type="hidden" name="shop" value="{{ shop.permanent_domain }}">
         <input type="hidden" name="productId" value="{{ product.id }}">
         <div class="qa-form-actions">
           <button type="submit" id="qa-submit-btn-fallback" class="btn btn-primary btn-full-width" data-default-text="{{ block.settings.modal_submit_text | default: 'Submit Question' }}">{{ block.settings.modal_submit_text | default: 'Submit Question' }}</button>
@@ -702,7 +702,7 @@
     console.log('[QA Display] Script loading, version v26-20251207');
 
     // Declare shopDomain early so it's available for fallback modal
-    const shopDomain = '{{ shop.domain }}';
+    const shopDomain = '{{ shop.permanent_domain }}';
 
     // Setup fallback modal with full AI support
     const fallbackModal = document.getElementById('qa-fallback-modal');
@@ -911,7 +911,7 @@
             body: JSON.stringify({
               customerQuestion: question,
               productId: '{{ product.id }}',
-              shop: '{{ shop.domain }}'
+              shop: shopDomain
             })
           });
 
@@ -1293,7 +1293,7 @@
       try {
         const params = new URLSearchParams({
           questionId,
-          shop: '{{ shop.domain }}'
+          shop: shopDomain
         });
         if (customerEmail) {
           params.set('customerEmail', customerEmail);
@@ -1362,7 +1362,7 @@
       isLoading = true;
       showLoading(isFirstPage);
 
-      fetch(`/apps/a/api/public/questions?productId=${productId}&page=${page}&limit=10&shop={{ shop.domain }}`)
+      fetch(`/apps/a/api/public/questions?productId=${productId}&page=${page}&limit=10&shop=${encodeURIComponent(shopDomain)}`)
         .then(response => response.json())
         .then(data => {
           if (data.questions && Array.isArray(data.questions)) {
@@ -1479,7 +1479,7 @@
         <div class="qa-vote-container">
           <form class="qa-vote-form" method="post" data-question-id="${safeQuestionId}">
             <input type="hidden" name="questionId" value="${safeQuestionId}">
-            <input type="hidden" name="shop" value="{{ shop.domain }}">
+            <input type="hidden" name="shop" value="{{ shop.permanent_domain }}">
             <input type="hidden" name="customerEmail" value="${safeCustomerEmail}">
             <input type="hidden" name="customerId" value="${safeCustomerId}">
             <button type="submit" class="btn btn-vote" data-votes="${question.votes || 0}">

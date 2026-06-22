@@ -3,6 +3,7 @@ import { cors } from "../lib/cors.server.js";
 import { triggerWebhook } from "../lib/webhook.server.js";
 import { sendNewQuestionNotification, sendQuestionPublishedNotification } from "../lib/email.server.js";
 import prisma from "../db.server";
+import { resolvePublicShopDomain } from "../lib/shop-domain.server.js";
 
 const GET_PRODUCT_DETAILS_QUERY = `
   query getProductDetails($id: ID!) {
@@ -27,7 +28,7 @@ const GET_PRODUCT_DETAILS_QUERY = `
 
 export async function loader({ request }) {
   const url = new URL(request.url);
-  const shop = url.searchParams.get("shop");
+  const shop = resolvePublicShopDomain(request, url.searchParams.get("shop"));
   const productId = url.searchParams.get("productId");
   const page = parseInt(url.searchParams.get("page") || "1", 10);
   const limit = parseInt(url.searchParams.get("limit") || "10", 10);
@@ -80,7 +81,7 @@ export async function action({ request }) {
 
   const formData = await request.formData();
   const productId = formData.get("productId");
-  const shop = formData.get("shop");
+  const shop = resolvePublicShopDomain(request, formData.get("shop"));
   const question = (formData.get("question") || "").trim();
   const rawCustomerName = formData.get("customerName");
   const rawCustomerEmail = formData.get("customerEmail");

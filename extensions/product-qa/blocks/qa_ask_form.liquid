@@ -71,7 +71,7 @@
           <input type="email" id="customer-email" name="customerEmail" value="{{ customer.email }}" {% if block.settings.email_required %}required{% endif %}>
         </div>
       </div>
-      <input type="hidden" name="shop" value="{{ shop.domain }}">
+      <input type="hidden" name="shop" value="{{ shop.permanent_domain }}">
       <input type="hidden" name="productId" value="{{ product.id }}">
       <div class="qa-form-actions">
         <button type="submit" id="qa-submit-btn" class="btn btn-primary btn-full-width" data-default-text="{{ block.settings.submit_text | default: 'Submit Question' }}"></button>
@@ -132,7 +132,7 @@
           <input type="email" id="customer-email-modal" name="customerEmail" value="{{ customer.email }}" {% if block.settings.modal_email_required %}required{% endif %}>
         </div>
       </div>
-      <input type="hidden" name="shop" value="{{ shop.domain }}">
+      <input type="hidden" name="shop" value="{{ shop.permanent_domain }}">
       <input type="hidden" name="productId" value="{{ product.id }}">
       <div class="qa-form-actions">
             <button type="submit" id="qa-submit-btn-modal" class="btn btn-primary btn-full-width" data-default-text="{{ block.settings.modal_submit_text | default: 'Submit Question' }}"></button>
@@ -195,7 +195,7 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('[QA Form] Script loading, version v24-20251106');
 
     const productId = document.querySelector('.product-qa-wrapper')?.dataset.productId;
-    const shopDomain = '{{ shop.domain }}';
+    const shopDomain = '{{ shop.permanent_domain }}';
 
     console.log('[QA Form] Elements check:', {
       productId,

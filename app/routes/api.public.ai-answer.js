@@ -5,6 +5,7 @@ import { unauthenticated } from "../shopify.server";
 import { PlanFeature, planHasFeature } from "../lib/plans";
 import { getSubscriptionPlanContext } from "../lib/plans.server";
 import { getStoreContext } from "../lib/store-context.server.js";
+import { resolvePublicShopDomain } from "../lib/shop-domain.server.js";
 
 const GET_PRODUCT_DETAILS_QUERY = `
   query getProduct($id: ID!) {
@@ -27,7 +28,8 @@ const GET_PRODUCT_DETAILS_QUERY = `
 `;
 
 export async function action({ request }) {
-  const { customerQuestion, productId, shop } = await request.json();
+  const { customerQuestion, productId, shop: submittedShop } = await request.json();
+  const shop = resolvePublicShopDomain(request, submittedShop);
 
   if (!customerQuestion || !productId || !shop) {
     return json({ error: "customerQuestion, productId, and shop are required." }, { status: 400 });

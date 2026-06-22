@@ -2,10 +2,11 @@ import { json } from "@remix-run/node";
 import { cors } from "../lib/cors.server.js";
 import { getSubscriptionPlanContext } from "../lib/plans.server";
 import { planHasFeature, PlanFeature } from "../lib/plans";
+import { resolvePublicShopDomain } from "../lib/shop-domain.server.js";
 
 export async function loader({ request }) {
   const url = new URL(request.url);
-  const shop = url.searchParams.get("shop");
+  const shop = resolvePublicShopDomain(request, url.searchParams.get("shop"));
 
   if (!shop) {
     const response = json({ error: "Missing required shop parameter" }, { status: 400 });
