@@ -4,7 +4,8 @@ import { authenticate } from "../shopify.server";
 import { sendNewAnswerNotification } from "../lib/email.server.js";
 
 const GET_PRODUCT_HANDLE_AND_SHOP_QUERY = `
-  query getProductHandleAndShop($productId: ID!) {
+  #graphql
+  query getAnswerProductHandleAndShop($productId: ID!) {
     product(id: $productId) {
       handle
     }

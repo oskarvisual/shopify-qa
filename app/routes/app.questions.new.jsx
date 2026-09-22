@@ -21,7 +21,8 @@ import prisma from "../db.server";
 const CHARACTER_LIMIT = 500;
 
 const GET_PRODUCT_DETAILS_QUERY = `
-  query getProductDetails($id: ID!) {
+  #graphql
+  query getNewQuestionProductDetails($id: ID!) {
     product(id: $id) {
       handle
       title

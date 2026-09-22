@@ -24,7 +24,8 @@ import { getAdminShopDomains, shopDomainWhere } from "../lib/shop-domain.server.
 const PAGE_SIZE = 10;
 
 const GET_PRODUCT_HANDLE_AND_SHOP_QUERY = `
-  query getProductHandleAndShop($productId: ID!) {
+  #graphql
+  query getQuestionListProductHandleAndShop($productId: ID!) {
     product(id: $productId) {
       handle
     }

@@ -30,7 +30,8 @@ import { getAdminShopDomains, shopDomainWhere } from "../lib/shop-domain.server.
 const CHARACTER_LIMIT = 500;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const GET_PRODUCT_HANDLE_AND_SHOP_QUERY = `
-  query getProductHandleAndShop($productId: ID!) {
+  #graphql
+  query getQuestionDetailProductHandleAndShop($productId: ID!) {
     product(id: $productId) {
       handle
     }
@@ -71,7 +72,8 @@ export const loader = async ({ request, params }) => {
   if (question.productId) {
     try {
       const productResponse = await admin.graphql(`
-        query getProduct($id: ID!) {
+        #graphql
+        query getQuestionDetailProduct($id: ID!) {
           product(id: $id) {
             id
             title

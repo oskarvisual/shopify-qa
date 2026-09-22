@@ -1,4 +1,5 @@
 const SHOP_INFO_QUERY = `
+  #graphql
   query getShopInfo {
     shop {
       name
@@ -16,6 +17,7 @@ const SHOP_INFO_QUERY = `
 `;
 
 const DELIVERY_PROFILES_QUERY = `
+  #graphql
   query getDeliveryProfiles {
     deliveryProfiles(first: 10) {
       edges {

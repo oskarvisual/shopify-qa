@@ -9,7 +9,8 @@ export const loader = async ({ request }) => {
 
   // Fetch products for the product selector
   const productsResponse = await admin.graphql(`
-    query getProducts($first: Int!) {
+    #graphql
+    query getQuestionSelectorProducts($first: Int!) {
       products(first: $first) {
         nodes {
           id

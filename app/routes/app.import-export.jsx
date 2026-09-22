@@ -33,7 +33,8 @@ import { getSubscriptionPlanContext } from "../lib/plans.server";
 import { usePlanContext, usePlanFeature } from "../lib/plan-context";
 
 const GET_PRODUCT_DETAILS_QUERY = `
-  query getProductDetails($id: ID!) {
+  #graphql
+  query getImportProductDetails($id: ID!) {
     product(id: $id) {
       productType
       tags

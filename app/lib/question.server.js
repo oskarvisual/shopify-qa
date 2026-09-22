@@ -4,7 +4,8 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 const GET_PRODUCT_DETAILS_QUERY = `
-  query getProductDetails($id: ID!) {
+  #graphql
+  query getQuestionProductDetails($id: ID!) {
     product(id: $id) {
       productType
       tags

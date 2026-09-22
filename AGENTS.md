@@ -306,7 +306,7 @@ Both modes update the plan in the database on next app visit.
 **IMPORTANT:** This app uses GraphQL API exclusively. REST Admin API for products/variants is deprecated and will be unsupported after 2025-04-01.
 
 ### GraphQL Configuration
-- API version: `2025-01` (defined in `shopify.server.js`)
+- API version: `2026-07` (defined in `shopify.server.js`)
 - `removeRest: true` flag prevents accidental REST API usage
 - All product, collection, shop, and shipping queries use GraphQL
 

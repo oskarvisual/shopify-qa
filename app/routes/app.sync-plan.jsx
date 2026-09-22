@@ -4,7 +4,8 @@ import prisma from "../db.server";
 import { createSubscriptionPlanConfigKey, normalizePlan } from "../lib/plans";
 
 const ACTIVE_SUBSCRIPTIONS_QUERY = `
-  query GetActiveSubscriptions {
+  #graphql
+  query GetSyncPlanActiveSubscriptions {
     currentAppInstallation {
       activeSubscriptions {
         id

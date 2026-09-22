@@ -8,7 +8,8 @@ import { getStoreContext } from "../lib/store-context.server.js";
 import { resolvePublicShopDomain } from "../lib/shop-domain.server.js";
 
 const GET_PRODUCT_DETAILS_QUERY = `
-  query getProduct($id: ID!) {
+  #graphql
+  query getPublicAiAnswerProduct($id: ID!) {
     product(id: $id) {
       id
       title

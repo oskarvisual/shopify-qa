@@ -10,7 +10,7 @@ handle = "product-questions-and-answers-2"
 automatically_update_urls_on_dev = false
 
 [webhooks]
-api_version = "2025-07"
+api_version = "2026-07"
 
   [[webhooks.subscriptions]]
   topics = [ "app/scopes_update" ]

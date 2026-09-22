@@ -31,7 +31,8 @@ export const loader = async ({ request }) => {
 
   if (productIds.length > 0) {
     const productResponse = await admin.graphql(`
-      query getProducts($ids: [ID!]!) {
+      #graphql
+      query getAiLogsProducts($ids: [ID!]!) {
         nodes(ids: $ids) {
           ... on Product {
             id

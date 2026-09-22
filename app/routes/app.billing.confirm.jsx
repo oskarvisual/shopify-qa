@@ -9,9 +9,10 @@ import {
 } from "../lib/plans";
 
 const CURRENT_INSTALLATION_QUERY = `
-  query CurrentInstallation {
+  #graphql
+  query GetBillingConfirmCurrentInstallation {
     currentAppInstallation {
-      activeSubscriptions(first: 10) {
+      activeSubscriptions {
         id
         name
         status

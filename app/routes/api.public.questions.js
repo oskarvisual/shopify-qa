@@ -4,19 +4,19 @@ import { triggerWebhook } from "../lib/webhook.server.js";
 import { sendNewQuestionNotification, sendQuestionPublishedNotification } from "../lib/email.server.js";
 import prisma from "../db.server";
 import { resolvePublicShopDomain } from "../lib/shop-domain.server.js";
+import { authenticate } from "../shopify.server";
 
 const GET_PRODUCT_DETAILS_QUERY = `
-  query getProductDetails($id: ID!) {
+  #graphql
+  query getPublicQuestionProductDetails($id: ID!) {
     product(id: $id) {
       handle
       title
       productType
       tags
-      inCollections(first: 10) {
-        edges {
-          node {
-            title
-          }
+      collections(first: 10) {
+        nodes {
+          title
         }
       }
     }
@@ -79,9 +79,14 @@ export async function action({ request }) {
     return cors(request, json({ error: "Method not allowed" }, { status: 405 }));
   }
 
+  const { admin, session } = await authenticate.public.appProxy(request);
+  if (!admin || !session) {
+    return cors(request, json({ error: "The app is not installed for this shop" }, { status: 401 }));
+  }
+
   const formData = await request.formData();
   const productId = formData.get("productId");
-  const shop = resolvePublicShopDomain(request, formData.get("shop"));
+  const shop = session.shop;
   const question = (formData.get("question") || "").trim();
   const rawCustomerName = formData.get("customerName");
   const rawCustomerEmail = formData.get("customerEmail");
@@ -111,51 +116,36 @@ export async function action({ request }) {
     let storeName = null;
 
     try {
-      const session = await prisma.session.findFirst({
-        where: { shop },
-        orderBy: { id: "desc" },
+      const productResponse = await admin.graphql(GET_PRODUCT_DETAILS_QUERY, {
+        variables: { id: `gid://shopify/Product/${productId}` },
       });
 
-      if (session?.accessToken) {
-        const graphqlResponse = await fetch(`https://${shop}/admin/api/2025-01/graphql.json`, {
-          method: "POST",
-          headers: {
-            "X-Shopify-Access-Token": session.accessToken,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            query: GET_PRODUCT_DETAILS_QUERY,
-            variables: { id: `gid://shopify/Product/${productId}` },
-          }),
-        });
+      if (productResponse.ok) {
+        const responseData = await productResponse.json();
+        const product = responseData.data?.product;
+        storeName = responseData.data?.shop?.name || null;
 
-        if (graphqlResponse.ok) {
-          const responseData = await graphqlResponse.json();
-          const product = responseData.data?.product;
-          storeName = responseData.data?.shop?.name || null;
+        if (product) {
+          productType = product.productType;
+          productTags = product.tags?.join(', ') || null;
+          productHandle = product.handle || null;
+          productName = product.title || null;
 
-          if (product) {
-            productType = product.productType;
-            productTags = product.tags?.join(', ') || null;
-            productHandle = product.handle || null;
-            productName = product.title || null;
+          // Get the first non-"All" collection as the category
+          const collections = product.collections?.nodes || [];
+          const mainCollection = collections.find(
+            (collection) => collection.title !== "All" && !collection.title.toLowerCase().includes("automated")
+          );
 
-            // Get the first non-"All" collection as the category
-            const collections = product.inCollections?.edges || [];
-            const mainCollection = collections.find(
-              (edge) => edge.node.title !== "All" && !edge.node.title.toLowerCase().includes("automated")
-            );
-
-            if (mainCollection) {
-              productCategory = mainCollection.node.title;
-            } else if (productType) {
-              productCategory = productType.charAt(0).toUpperCase() + productType.slice(1);
-            }
+          if (mainCollection) {
+            productCategory = mainCollection.title;
+          } else if (productType) {
+            productCategory = productType.charAt(0).toUpperCase() + productType.slice(1);
           }
         }
       }
-    } catch (sessionError) {
-      console.warn("Failed to get session for product lookup:", sessionError.message);
+    } catch (productLookupError) {
+      console.warn("Failed to fetch product details from Shopify:", productLookupError.message);
     }
 
     const emailSettings = await prisma.emailSetting.findUnique({ where: { shop } });

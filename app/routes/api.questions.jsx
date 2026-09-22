@@ -4,7 +4,8 @@ import { authenticate } from "../shopify.server";
 import { sendNewQuestionNotification } from "../lib/email.server.js";
 
 const GET_PRODUCT_DETAILS_QUERY = `
-  query getProductDetails($id: ID!) {
+  #graphql
+  query getApiQuestionProductDetails($id: ID!) {
     product(id: $id) {
       handle
       productType

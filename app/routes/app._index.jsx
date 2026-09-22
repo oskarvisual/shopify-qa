@@ -67,7 +67,8 @@ export const loader = async ({ request }) => {
   let updatedPlanName = null;
   try {
     const ACTIVE_SUBSCRIPTIONS_QUERY = `
-      query GetActiveSubscriptions {
+      #graphql
+      query GetDashboardActiveSubscriptions {
         currentAppInstallation {
           activeSubscriptions {
             id

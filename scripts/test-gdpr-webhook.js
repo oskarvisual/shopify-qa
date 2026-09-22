@@ -93,7 +93,7 @@ async function testWebhook(type, targetUrl) {
         'X-Shopify-Topic': webhookConfig.topic,
         'X-Shopify-Hmac-Sha256': hmac,
         'X-Shopify-Shop-Domain': webhookConfig.payload.shop_domain,
-        'X-Shopify-API-Version': '2025-07',
+        'X-Shopify-API-Version': '2026-07',
       },
       body: body,
     });

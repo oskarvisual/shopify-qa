@@ -7,6 +7,7 @@ import {
 } from "../lib/plans";
 
 const APP_SUBSCRIPTION_CREATE_MUTATION = `
+  #graphql
   mutation AppSubscriptionCreate($name: String!, $returnUrl: URL!, $test: Boolean!, $lineItems: [AppSubscriptionLineItemInput!]!) {
     appSubscriptionCreate(name: $name, returnUrl: $returnUrl, test: $test, lineItems: $lineItems) {
       userErrors {
@@ -23,9 +24,10 @@ const APP_SUBSCRIPTION_CREATE_MUTATION = `
 `;
 
 const CURRENT_INSTALLATION_QUERY = `
-  query CurrentInstallation {
+  #graphql
+  query GetBillingCurrentInstallation {
     currentAppInstallation {
-      activeSubscriptions(first: 10) {
+      activeSubscriptions {
         id
         name
         status

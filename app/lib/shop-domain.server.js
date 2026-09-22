@@ -47,6 +47,7 @@ export async function getAdminShopDomains({ admin, shop }) {
 
   try {
     const response = await admin.graphql(`
+      #graphql
       query getShopPrimaryDomain {
         shop {
           primaryDomain {

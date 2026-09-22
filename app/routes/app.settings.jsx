@@ -136,7 +136,8 @@ export const loader = async ({ request }) => {
 };
 
 const ACTIVE_SUBSCRIPTIONS_QUERY = `
-  query GetActiveSubscriptions {
+  #graphql
+  query GetSettingsActiveSubscriptions {
     currentAppInstallation {
       activeSubscriptions {
         id

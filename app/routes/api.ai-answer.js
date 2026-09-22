@@ -7,7 +7,8 @@ import { PlanFeature, planHasFeature } from "../lib/plans";
 import { getSubscriptionPlanContext } from "../lib/plans.server";
 
 const GET_PRODUCT_DETAILS_QUERY = `
-  query getProduct($id: ID!) {
+  #graphql
+  query getAiAnswerProduct($id: ID!) {
     product(id: $id) {
       id
       title
