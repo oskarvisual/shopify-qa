@@ -48,6 +48,40 @@ La respuesta de KIE es compatible con el formato OpenAI
 (`choices[0].message.content`), que es lo que consume el nodo
 "Normalize answer".
 
+## Cuota diaria de IA
+
+El contador vive en la Data Table `qa_ai_usage` con la clave `(shop, date)`.
+Es la fuente de verdad: n8n incrementa la fila en cada peticion atendida.
+
+Reglas aplicadas en el nodo "Enforce quota":
+
+1. **Solo los planes con `aiCustomerSupport`** (ultra) pueden generar
+   respuestas. Para el resto responde `plan_not_enabled`.
+2. **Nunca mas de `aiDailyLimit` por dia**. Ese valor lo calcula la app por
+   shop (`getSubscriptionPlanContext`, default 200) y se aplica con un tope
+   duro de 100.
+
+Cuando se agota la cuota responde:
+
+```json
+{
+  "answer": false,
+  "message": "",
+  "noAnswer": true,
+  "error": "Daily AI limit reached (100 per day)",
+  "reason": "daily_limit_reached",
+  "statusCode": 403
+}
+```
+
+La app registra el intento en `aiLog` y el motivo queda visible en
+`fullContext`.
+
+> El body de la petición a KIE debe leer el payload del nodo
+> `Authorize webhook` (`$('Authorize webhook').first().json`), no el del nodo
+> anterior: `Enforce quota` solo tiene los datos de cuota y mandaría un
+> contexto vacío, con lo que Gemini respondería `NO_RESPONSE_AVAILABLE`.
+
 ## Contratos de respuesta
 
 La app espera que el webhook de AI answer devuelva:
