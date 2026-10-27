@@ -87,6 +87,10 @@ async function buildWebhookPayload(context = {}) {
     product: normalizedProduct,
     plan: planContext?.plan || null,
     planFeatures: planContext?.features || null,
+    // Limite diario de respuestas de IA para este shop. n8n lo aplica
+    // junto con el plan: solo los planes con AI customer support activo
+    // pueden generar respuestas, y nunca mas de este numero por dia.
+    aiDailyLimit: planContext?.aiDailyLimit || null,
     aiDailyCount,
     ...(hasStoreData ? { store } : {}),
   };
@@ -188,11 +192,16 @@ export async function generateAnswer(context) {
 
     const noAnswer = typeof data.noAnswer === "boolean" ? data.noAnswer : !hasAnswer;
 
+    // Motivo por el que no se genero respuesta (cuota agotada, plan sin AI...).
+    // Se registra en el log para poder diagnosticarlo desde el panel.
+    const reason = typeof data.reason === "string" ? data.reason : "";
+
     return {
       message,
       hasAnswer,
       fullContext: normaliseAnswerPayload({ payload, response: data }),
       noAnswer,
+      reason,
     };
   } catch (error) {
     console.error("Error generating AI answer via webhook:", error.message);
