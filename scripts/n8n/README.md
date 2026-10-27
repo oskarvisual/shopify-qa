@@ -16,6 +16,37 @@ trampas de n8n 2.x (Data Tables físicas, active version, `shared_workflow`,
 | | Shopify QA - Send email | `9a8a7b2b-2383-460c-9447-c10fd484427d` |
 | | Shopify QA - Webhook relay | `0591a3db-e9d4-4264-af04-31fb5347422b` |
 
+## SMTP (Amazon SES)
+
+El workflow de email usa el nodo `Send Email` (`n8n-nodes-base.emailSend`,
+typeVersion 2.1) con la credencial SMTP **"Amazon SES"**.
+
+La credencial está cifrada en la base de datos de n8n con la
+`N8N_ENCRYPTION_KEY` (AES-256-CBC + `EVP_BytesToKey`, prefijo `Salted__`).
+Para crearla o rotarla hay que cifrar el JSON:
+
+```json
+{
+  "host": "email-smtp.us-east-2.amazonaws.com",
+  "port": 25,
+  "secure": false,
+  "ignoreTLS": false,
+  "requireTLS": true,
+  "user": "<AWS_ACCESS_KEY_ID>",
+  "password": "<AWS_SECRET_ACCESS_KEY>",
+  "name": "0rivisdev",
+  "email": "noreply@orivisdev.shop"
+}
+```
+
+El remitente por defecto es `noreply@orivisdev.shop` ("0rivisdev"). Amazon SES
+no necesita verificar el remitente si la cuenta esta fuera del sandbox, pero
+si el destino no esta verificado en sandbox el envio se rechaza.
+
+Las variables `SMTP_*` en `/srv/n8n/.env` son la copia legible del
+credential y se pasan al contenedor por el `docker-compose.yml`.
+
+
 ## Uso
 
 ```bash

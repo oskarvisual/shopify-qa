@@ -17,6 +17,9 @@ from n8nlib import *
 #    (newQuestion, newAnswer, ...) a la URL que configuro el merchant.
 # ================================================================
 
+# Credencial SMTP de n8n (creada en la DB de n8n, tipo smtp)
+SMTP_CRED_ID = "d5776197-5ec7-4fb6-a03e-fd5f4140b74f"
+
 TOKEN_JS = """
 const expected = $env.AUTOMATIONS_TOKEN;
 const received = $node['%s'].json.headers?.authorization || '';
@@ -33,7 +36,7 @@ def token_js(node_name):
 # ---------------------------------------------------------------- 1. FEEDBACK
 FEEDBACK_JS = """
 // Si el nodo de autorizacion fallo, responde 401 en vez de cortar el flujo.
-const authError = $('Authorize webhook').item.error;
+const authError = $('Authorize webhook').first().json.error;
 if (authError) {
   return [{ json: { success: false, error: 'Unauthorized', statusCode: 401 } }];
 }
@@ -97,97 +100,104 @@ upsert_workflow(
 
 # ---------------------------------------------------------------- 2. EMAIL
 EMAIL_JS = """
+// Resuelve remitente y destinatario.
 // Si el nodo de autorizacion fallo, responde 401 en vez de cortar el flujo.
-const authError = $('Authorize webhook').item.error;
+const authError = $('Authorize webhook').first().json.error;
 if (authError) {
   return [{ json: { ok: false, error: 'Unauthorized', statusCode: 401 } }];
 }
 
-// Resuelve la configuracion SMTP a usar.
-// No lanza error: devuelve el estado para que el webhook pueda responder
-// con un mensaje claro cuando no hay SMTP configurado.
 const input = $input.first().json || {};
 const mail = input.mail || {};
-const settings = input.emailSettings || {};
-const defaultSmtp = input.defaultSmtp || {};
 
-// Prioridad: SMTP propio del merchant > SMTP por defecto
-const useCustom = Boolean(settings.host && settings.user && settings.pass && settings.fromEmail);
-const smtp = useCustom ? settings : defaultSmtp;
+// El remitente por defecto es el de Amazon SES; el merchant puede
+// sobrescribirlo con su propio SMTP desde los ajustes de la app.
+const fromEmail = input.fromEmail || 'noreply@orivisdev.shop';
+const fromName = input.fromName || '0rivisdev';
 
-const configured = Boolean(smtp.host && smtp.fromEmail);
+const to = mail.to || '';
+if (!to) {
+  return [{ json: { ok: false, error: 'Missing recipient', statusCode: 400 } }];
+}
 
 return [{
   json: {
-    ok: configured,
-    to: mail.to || '',
+    ok: true,
+    to,
     subject: mail.subject || '',
     html: mail.html || '',
     text: mail.text || '',
-    from: configured ? smtp.fromEmail : '',
-    smtp: {
-      host: smtp.host || '',
-      port: smtp.port || 587,
-      secure: Boolean(smtp.secure),
-      user: smtp.user || '',
-      pass: smtp.pass || '',
-    },
-    usingCustomSmtp: useCustom,
+    fromEmail: fromName ? fromName + ' <' + fromEmail + '>' : fromEmail,
     shop: input.shop || '',
     event: (input.meta && input.meta.event) || 'email',
     dispatchedAt: input.dispatchedAt || new Date().toISOString(),
-    error: configured ? '' : 'No SMTP configuration available',
   },
 }];
 """
 
 EMAIL_RESULT_JS = """
-const ctx = $input.first().json || {};
-if (ctx.statusCode === 401) {
-  return [{ json: { success: false, action: 'email', error: 'Unauthorized', statusCode: 401 } }];
-}
-if (!ctx.ok) {
-  // Sin SMTP el webhook responde con success=false y un motivo claro,
-  // en vez de cortar el flujo sin responder.
-  return [{
-    json: {
-      success: false,
-      action: 'email',
-      error: ctx.error || 'Email not sent',
-      shop: ctx.shop || '',
-      to: ctx.to || '',
-      subject: ctx.subject || '',
-      dispatchedAt: ctx.dispatchedAt || new Date().toISOString(),
-    },
-  }];
-}
-return [{
-  json: {
-    success: true,
+// Normaliza el resultado del nodo Send Email
+const ctx = $('Resolve email').first().json || {};
+
+if (ctx.statusCode) {
+  return [{ json: {
+    success: false,
     action: 'email',
+    error: ctx.error || 'Email not sent',
+    statusCode: ctx.statusCode,
     shop: ctx.shop || '',
     to: ctx.to || '',
-    subject: ctx.subject || '',
-    usingCustomSmtp: Boolean(ctx.usingCustomSmtp),
-    dispatchedAt: ctx.dispatchedAt || new Date().toISOString(),
-  },
-}];
+  } }];
+}
+
+return [{ json: {
+  success: true,
+  action: 'email',
+  shop: ctx.shop || '',
+  to: ctx.to || '',
+  subject: ctx.subject || '',
+  from: ctx.fromEmail || '',
+  dispatchedAt: ctx.dispatchedAt || new Date().toISOString(),
+} }];
 """
 
 qa_email_nodes = [
     webhook("9a8a7b2b-2383-460c-9447-c10fd484427d", "Email webhook", "qa-email-webhook"),
     code(token_js("Email webhook"), "Authorize webhook", "qa-email-auth", [220, 0],
          on_error="continueRegularOutput"),
-    code(EMAIL_JS, "Resolve SMTP", "qa-email-smtp", [440, 0]),
-    code(EMAIL_RESULT_JS, "Build result", "qa-email-result", [660, 0]),
-    respond("={{ $json }}", "Return email", "qa-email-response", [880, 0]),
+    code(EMAIL_JS, "Resolve email", "qa-email-resolve", [440, 0]),
+    {
+        "parameters": {
+            "resource": "email",
+            "operation": "send",
+            "fromEmail": "={{ $json.fromEmail }}",
+            "toEmail": "={{ $json.to }}",
+            "subject": "={{ $json.subject }}",
+            "emailFormat": "html",
+            "html": "={{ $json.html }}",
+            "options": {},
+        },
+        "id": "qa-email-send",
+        "name": "Send email",
+        "type": "n8n-nodes-base.emailSend",
+        "typeVersion": 2.1,
+        "position": [660, 0],
+        "credentials": {
+            "smtp": {"id": SMTP_CRED_ID, "name": "Amazon SES"},
+        },
+        "onError": "continueRegularOutput",
+        "alwaysOutputData": True,
+    },
+    code(EMAIL_RESULT_JS, "Build email result", "qa-email-result", [880, 0]),
+    respond("={{ $json }}", "Return email", "qa-email-response", [1100, 0]),
 ]
 
 qa_email_conn = conn(
     ("Email webhook", "Authorize webhook"),
-    ("Authorize webhook", "Resolve SMTP"),
-    ("Resolve SMTP", "Build result"),
-    ("Build result", "Return email"),
+    ("Authorize webhook", "Resolve email"),
+    ("Resolve email", "Send email"),
+    ("Send email", "Build email result"),
+    ("Build email result", "Return email"),
 )
 
 print()
@@ -205,7 +215,7 @@ upsert_workflow(
 # ---------------------------------------------------------------- 3. WEBHOOK GENERICO
 RELAY_RESULT_JS = """
 // Si el nodo de autorizacion fallo, responde 401 en vez de cortar el flujo.
-const authError = $('Authorize webhook').item.error;
+const authError = $('Authorize webhook').first().json.error;
 if (authError) {
   return [{ json: { success: false, error: 'Unauthorized', statusCode: 401 } }];
 }

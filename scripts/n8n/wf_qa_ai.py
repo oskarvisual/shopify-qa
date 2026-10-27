@@ -129,7 +129,7 @@ QA_AI_BODY = """={{ (() => {
 
 QA_AI_NORMALIZE = """
 // Si el nodo de autorizacion fallo, responde 401 en vez de cortar el flujo.
-const authError = $('Authorize webhook').item.error;
+const authError = $('Authorize webhook').first().json.error;
 if (authError) {
   return [{ json: { answer: false, message: '', noAnswer: true, error: 'Unauthorized', statusCode: 401 } }];
 }
@@ -148,7 +148,7 @@ if (quota.allowed === false) {
 }
 
 // Si la llamada a KIE fallo, reporta el error en vez de cortar el flujo.
-const kieError = $('Ask Gemini').item.error;
+const kieError = $('Ask Gemini').first().json.error;
 if (kieError) {
   return [{ json: {
     answer: false,
