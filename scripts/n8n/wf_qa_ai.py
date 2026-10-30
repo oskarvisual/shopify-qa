@@ -223,10 +223,11 @@ qa_ai_nodes = [
             "sendHeaders": True,
             "headerParameters": {
                 "parameters": [
-                    {"name": "Authorization", "value": "={{ 'Bearer ' + $env.KIE_API_KEY }}"},
                     {"name": "Content-Type", "value": "application/json"},
                 ],
             },
+            "authentication": "genericCredentialType",
+            "genericAuthType": "httpHeaderAuth",
             "sendBody": True,
             "specifyBody": "json",
             "jsonBody": QA_AI_BODY,
@@ -237,6 +238,9 @@ qa_ai_nodes = [
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [1100, 0],
+        "credentials": {
+            "httpHeaderAuth": {"id": "59662b43-e941-46c1-bfe1-157c4eb44fc2", "name": "KIE API"},
+        },
         # Si KIE falla, continua para poder responder con un error claro.
         "onError": "continueRegularOutput",
         "alwaysOutputData": True,

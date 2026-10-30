@@ -79,6 +79,35 @@ La respuesta de KIE es compatible con el formato OpenAI
 (`choices[0].message.content`), que es lo que consume el nodo
 "Normalize answer".
 
+## Credencial de KIE
+
+El workflow usa la credencial de n8n **"KIE API"** (tipo `httpHeaderAuth`),
+compartida con la app de bAInners.
+
+El tipo `httpHeaderAuth` usa dos campos:
+
+```json
+{ "name": "Authorization", "value": "Bearer <KIE_API_KEY>" }
+```
+
+- `name` → el **nombre del header HTTP**
+- `value` → el valor del header
+
+El nodo **HTTP Request** la usa con:
+
+```json
+{
+  "authentication": "genericCredentialType",
+  "genericAuthType": "httpHeaderAuth"
+}
+```
+
+y sin header `Authorization` manual en `headerParameters`.
+
+> Si en el futuro se crea una key de KIE distinta para otro proyecto, hay
+> que crear una credencial nueva (p.ej. "KIE API - <proyecto>") en lugar de
+> reutilizar esta, para no confundir los consumos.
+
 ## Cuota diaria de IA
 
 El contador vive en la Data Table `qa_ai_usage` con la clave `(shop, date)`.
